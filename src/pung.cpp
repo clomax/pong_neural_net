@@ -4,7 +4,7 @@
 
 #define SCREEN_WIDTH 1024
 #define SCREEN_HEIGHT 550
-#define METERS_PER_PIXEL 5
+#define METERS_PER_PIXEL 15
 #define PIXELS_PER_METER 1 / METERS_PER_PIXEL
 
 struct paddle
@@ -20,8 +20,6 @@ struct ball
   sf::CircleShape *shape;
   b2Body *body;
   sf::Color colour;
-  sf::Vector2f pos;
-  float speed;
   float radius;
 };
 
@@ -66,18 +64,16 @@ main (int argc, char ** argv)
 
   // Create ball 0
   ball *ball0 = (ball *) malloc(sizeof(ball));
-  ball0->radius = 20.0f;
-  ball0->pos = sf::Vector2f(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+  ball0->radius = 10.0f;
   ball0->colour = sf::Color::Red;
 
   b2BodyDef ball_body_def;
-
   ball_body_def.position = b2Vec2(
     (SCREEN_WIDTH / 2) * PIXELS_PER_METER,
     (SCREEN_HEIGHT / 2)
   );
-
   ball_body_def.type = b2_dynamicBody;
+
   b2Body* ball_body = World.CreateBody(&ball_body_def);
   ball0->body = ball_body;
 
@@ -94,11 +90,10 @@ main (int argc, char ** argv)
   ball0->shape = &ball_shape;
   ball0->shape->setRadius(ball0->radius);
   ball0->shape->setOrigin(sf::Vector2f(ball0->radius/2, ball0->radius/2));
-  ball0->shape->setPosition(SCREEN_WIDTH/2,SCREEN_HEIGHT/2);
   ball0->shape->setFillColor(ball0->colour);
 
   b2Vec2 vel = ball0->body->GetLinearVelocity();
-  vel.x = -50 * METERS_PER_PIXEL;
+  vel.x = -3 * METERS_PER_PIXEL;
   ball0->body->SetLinearVelocity(vel);
 
   sf::Clock clk;
@@ -145,7 +140,7 @@ main (int argc, char ** argv)
         SCREEN_HEIGHT/2),
         0
       );
-      b2Vec2 vel = b2Vec2(50*METERS_PER_PIXEL,0);
+      b2Vec2 vel = b2Vec2(3*METERS_PER_PIXEL,0);
       ball0->body->SetLinearVelocity(vel);
     }
 
@@ -156,7 +151,7 @@ main (int argc, char ** argv)
         SCREEN_HEIGHT/2),
         0
       );
-      b2Vec2 vel = b2Vec2(-50*METERS_PER_PIXEL,0);
+      b2Vec2 vel = b2Vec2(-3*METERS_PER_PIXEL,0);
       ball0->body->SetLinearVelocity(vel);
     }
 
