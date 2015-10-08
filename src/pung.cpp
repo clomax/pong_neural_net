@@ -1,11 +1,25 @@
 #include <iostream>
 #include <string>
+#include <random>
 #include <SFML/Graphics.hpp>
 #include <Box2D/Box2D.h>
 
 #define SCREEN_WIDTH 1024
 #define SCREEN_HEIGHT 550
 #define SCALE 30.f
+#define PI 3.14159
+
+/*
+ * Add arguments:
+ *  - Collect data + data filename
+ *  - Play against NN + weights filename
+ *
+ * Collect data:
+ *  - Distance between ball and paddle (absolute)
+ *  - Linear velocity of ball (absolute)
+ *  - Difference between paddle Y and ball Y
+ *  - Output: target value
+ */
 
 struct paddle
 {
@@ -15,6 +29,8 @@ struct paddle
   sf::Vector2f dim;
   sf::Color colour;
   b2Body *body;
+  float speed;
+  float target_y;
 };
 
 struct ball
@@ -24,12 +40,22 @@ struct ball
   sf::CircleShape *shape;
   sf::Color colour;
   float radius;
+  float speed;
 };
+
+inline float
+random_float (float min, float max)
+{
+  float random = ((float) rand()) / (float) RAND_MAX;
+  float range = max - min;
+  return (random*range) + min;
+}
 
 int
 main (int argc, char ** argv)
 {
   sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
+  //window.setMouseCursorVisible(false);
   window.setFramerateLimit(60);
 
   b2Vec2 Gravity(0.0f, 0.0f);
@@ -72,9 +98,10 @@ main (int argc, char ** argv)
   p2.dim = sf::Vector2f(20,100);
   p2.pos = sf::Vector2f(
     (SCREEN_WIDTH - 50),
-    (SCREEN_HEIGHT / 2) - (p2.dim.y / 2)
+    (SCREEN_HEIGHT / 2)
   );
   p2.colour = sf::Color::Yellow;
+  p2.speed = 1.f;
 
   b2BodyDef paddle_body_def;
   paddle_body_def.position = b2Vec2(p2.pos.x/SCALE, p2.pos.y/SCALE);
@@ -107,14 +134,18 @@ main (int argc, char ** argv)
   // Create ball 0
   ball ball0;
   ball0.name = "Ball";
-  ball0.radius = 5.0f;
+  ball0.radius = 20.0f;
+  ball0.speed = 25.f;
   ball0.colour = sf::Color::Red;
+
+  sf::Texture ball_texture;
+  ball_texture.loadFromFile("assets/ball.png");
 
   sf::CircleShape ball_shape;
   ball0.shape = &ball_shape;
   ball0.shape->setRadius(ball0.radius);
-  ball0.shape->setOrigin(sf::Vector2f(ball0.radius/2, ball0.radius/2));
-  ball0.shape->setFillColor(ball0.colour);
+  ball0.shape->setOrigin(sf::Vector2f((ball0.radius),(ball0.radius)));
+  ball0.shape->setTexture(&ball_texture);
 
   b2BodyDef ball_body_def;
   ball_body_def.position = b2Vec2(10/SCALE,10/SCALE);
@@ -134,11 +165,42 @@ main (int argc, char ** argv)
   b2_ball_fixture_def.restitution = 1.f;
   ball0.body->CreateFixture(&b2_ball_fixture_def);
   ball0.body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
+  ball0.body->SetLinearVelocity(b2Vec2(-10.f,-7.f));
 
-  ball0.body->SetLinearVelocity(b2Vec2(-10.f,0.f));
+  // Create walls
+  b2BodyDef w0_body_def;
+  w0_body_def.position = b2Vec2((SCREEN_WIDTH/2)/SCALE, 0);
+  w0_body_def.type = b2_staticBody;
+  b2Body* w0_body = World.CreateBody(&w0_body_def);
+
+  b2PolygonShape b2_wall_shape;
+  b2_wall_shape.SetAsBox((SCREEN_WIDTH/SCALE), 1/SCALE);
+
+  b2FixtureDef b2_wall_fixture_def;
+  b2_wall_fixture_def.shape = &b2_wall_shape;
+  b2_wall_fixture_def.density = 1.f;
+  w0_body->CreateFixture(&b2_wall_fixture_def);
+
+
+  b2BodyDef w1_body_def;
+  w1_body_def.position = b2Vec2((SCREEN_WIDTH/2)/SCALE, SCREEN_HEIGHT/SCALE);
+  w1_body_def.type = b2_staticBody;
+  b2Body* w1_body = World.CreateBody(&w1_body_def);
+
+  b2PolygonShape b2_wall1_shape;
+  b2_wall1_shape.SetAsBox((SCREEN_WIDTH/SCALE), 1/SCALE);
+
+  b2FixtureDef b2_wall1_fixture_def;
+  b2_wall_fixture_def.shape = &b2_wall1_shape;
+  b2_wall_fixture_def.density = 1.f;
+  w1_body->CreateFixture(&b2_wall_fixture_def);
+
+  sf::Mouse::setPosition(sf::Vector2i(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), window);
 
   sf::Clock clk;
   sf::Time dt;
+
+  float damping = 0.9f;
 
   while (window.isOpen())
   {
@@ -151,43 +213,73 @@ main (int argc, char ** argv)
       if (event.type == sf::Event::Closed)
         window.close();
     }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
+    {
+      window.close();
+    }
+
+    float mouse_y = sf::Mouse::getPosition(window).y;
+    if (mouse_y >= p1.dim.y / 2 && mouse_y <= SCREEN_HEIGHT - (p1.dim.y / 2))
+      p1.target_y = sf::Mouse::getPosition(window).y / SCALE;
 
     b2Vec2 p1_position = p1.body->GetPosition();
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-    {
-      if (p1_position.y >= (p1.dim.y/2) / SCALE)
-      {
-        p1_position.y -= 5.f * dt.asSeconds();
-        p1.body->SetTransform(p1_position, 0);
-      }
-    }
-
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-    {
-      if (p1_position.y <= (SCREEN_HEIGHT / SCALE) - ((p1.dim.y/2) / SCALE))
-      {
-        p1_position.y += 5.f * dt.asSeconds();
-        p1.body->SetTransform(p1_position, 0);
-
-      }
-    }
-
-    window.clear(sf::Color(128,128,128));
+    p1_position.y = p1.target_y - (p1.target_y - p1_position.y) * 0.f;
+    p1.body->SetTransform(p1_position, 0);
 
     p1.shape->setPosition(
       SCALE * p1.body->GetPosition().x,
       SCALE * p1.body->GetPosition().y);
 
+    b2Vec2 p2_position = p2.body->GetPosition();
+    float p2_target = ball0.body->GetPosition().y;
+    p2_position.y = p2_target - (p2_target - p2_position.y) * damping;
+    p2.body->SetTransform(p2_position, 0);
+
+    p2.shape->setPosition(
+      SCALE * p2.body->GetPosition().x,
+      SCALE * p2.body->GetPosition().y);
+
+
     ball0.shape->setPosition(
       SCALE * ball0.body->GetPosition().x,
       SCALE * ball0.body->GetPosition().y);
 
-    for (b2Body* BodyIterator = World.GetBodyList();
-         BodyIterator !=0;
-         BodyIterator = BodyIterator->GetNext())
+    float vert_velocity = ball0.body->GetLinearVelocity().y;
+    if (std::abs(vert_velocity) < 3.f)
     {
-
+      float new_vert_velocity;
+      new_vert_velocity = (vert_velocity < 0) ? -5.f : 5.f;
+      b2Vec2 ball_vertical_velocity = b2Vec2(
+        ball0.body->GetLinearVelocity().x,
+        new_vert_velocity);
+      ball0.body->SetLinearVelocity(ball_vertical_velocity);
     }
+
+    float horiz_velocity = ball0.body->GetLinearVelocity().x;
+    if (std::abs(horiz_velocity) < ball0.speed)
+    {
+      float new_horiz_velocity;
+      new_horiz_velocity = (horiz_velocity < 0) ? -ball0.speed : ball0.speed;
+      b2Vec2 ball_horizical_velocity = b2Vec2(new_horiz_velocity, ball0.body->GetLinearVelocity().y);
+      ball0.body->SetLinearVelocity(ball_horizical_velocity);
+    }
+
+    if (ball0.body->GetPosition().x < 0 || ball0.body->GetPosition().x > (SCREEN_WIDTH / SCALE))
+    {
+      ball0.body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
+      ball0.body->SetLinearVelocity(b2Vec2(random_float(-10.f, 10.f), random_float(-7.f, 7.f)));
+    }
+
+    ball0.shape->setRotation(ball0.body->GetAngle() * (180/PI));
+
+
+    for (b2Contact* contact = World.GetContactList();
+         contact;
+         contact = contact->GetNext())
+    {
+    }
+
+    window.clear(sf::Color(110,110,110));
 
     window.draw(divider);
     window.draw(*p1.shape);
