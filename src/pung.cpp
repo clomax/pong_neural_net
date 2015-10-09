@@ -22,6 +22,7 @@
  *
  * Learn from data:
  *  - Use R
+ *  - Standard backprop. Worry about it not working later
  */
 
 struct paddle
@@ -99,7 +100,7 @@ main (int argc, char ** argv)
         filepath = "data/human/";
         std::cout << "Collecting human data..." << "\n";
         std::cout << "Writing to " << filepath << filename << "\n";
-        human_file.open(filepath + filename);
+        human_file.open(filepath + filename, std::ios_base::app);
         break;
       case 1:
         filepath = "data/ai/";
@@ -351,8 +352,8 @@ main (int argc, char ** argv)
       float vel_x = std::abs(ball0.body->GetLinearVelocity().x);
       float vel_y = std::abs(ball0.body->GetLinearVelocity().y);
       std::ostringstream buff;
-      buff << dist << delim << diff << delim << vel_x << delim << vel_y << delim << p1.target_y;
-      human_file << buff.str() << std::endl;
+      buff << dist << delim << diff << delim << vel_x << delim << vel_y << delim << p1.target_y << "\n";
+      human_file << buff.str();
     }
 
     window.clear(sf::Color(110,110,110));
