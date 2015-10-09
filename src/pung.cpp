@@ -1,5 +1,8 @@
 #include <iostream>
+#include <sstream>
+#include <fstream>
 #include <string>
+#include <cmath>
 #include <random>
 #include <SFML/Graphics.hpp>
 #include <Box2D/Box2D.h>
@@ -11,15 +14,14 @@
 #define PI 3.14159
 
 /*
- * Add arguments:
- *  - Collect data + data filename
- *  - Play against NN + weights filename
- *
  * Collect data:
  *  - Distance between ball and paddle (absolute)
  *  - Linear velocity of ball (absolute)
  *  - Difference between paddle Y and ball Y
  *  - Output: target value
+ *
+ * Learn from data:
+ *  - Use R
  */
 
 struct paddle
@@ -55,6 +57,16 @@ random_float (float min, float max)
 int
 main (int argc, char ** argv)
 {
+  std::ofstream human_file;
+  std::ifstream ai_file;
+
+  const std::string delim = ", ";
+
+  std::string filepath;
+  std::string filename;
+  int playmode;
+
+  float framerate = 60.f;
 
   try
   {
@@ -78,18 +90,22 @@ main (int argc, char ** argv)
     cmd.add(filenameArg);
     cmd.add(playmodeArg);
     cmd.parse(argc, argv);
-    std::string filename = filenameArg.getValue();
-    int playmode = playmodeArg.getValue();
+    filename = filenameArg.getValue();
+    playmode = playmodeArg.getValue();
 
     switch(playmode)
     {
       case 0:
+        filepath = "data/human/";
         std::cout << "Collecting human data..." << "\n";
-        std::cout << "Writing to " << filename << "\n";
+        std::cout << "Writing to " << filepath << filename << "\n";
+        human_file.open(filepath + filename);
         break;
       case 1:
+        filepath = "data/ai/";
         std::cout << "Playing against AI" << "\n";
-        std::cout << "Reading from " << filename << "\n";
+        std::cout << "Reading from " << filepath << filename << "\n";
+        ai_file.open(filepath + filename);
         break;
       default:
         std::cout << "Undefined playmode!" << "\n";
@@ -97,14 +113,11 @@ main (int argc, char ** argv)
     }
   }
   catch (TCLAP::ArgException &e)
-  {
-    std::cerr << "Error!\n";
-  }
+  { std::cerr << "ERROR: " << e.error() << " " << e.argId() << std::endl; }
 
-  return 0;
 
   sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
-  //window.setMouseCursorVisible(false);
+  window.setMouseCursorVisible(false);
   window.setFramerateLimit(60);
 
   b2Vec2 Gravity(0.0f, 0.0f);
@@ -214,7 +227,7 @@ main (int argc, char ** argv)
   b2_ball_fixture_def.restitution = 1.f;
   ball0.body->CreateFixture(&b2_ball_fixture_def);
   ball0.body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
-  ball0.body->SetLinearVelocity(b2Vec2(-10.f,-7.f));
+  ball0.body->SetLinearVelocity(b2Vec2(-ball0.speed, random_float(-3.f, 3.f)));
 
   // Create walls
   b2BodyDef w0_body_def;
@@ -253,8 +266,7 @@ main (int argc, char ** argv)
 
   while (window.isOpen())
   {
-    dt = clk.restart();
-    World.Step(1/60.f, 8, 3);
+    World.Step(1.f/framerate, 8, 3);
 
     sf::Event event;
     while(window.pollEvent(event))
@@ -297,35 +309,50 @@ main (int argc, char ** argv)
     if (std::abs(vert_velocity) < 3.f)
     {
       float new_vert_velocity;
-      new_vert_velocity = (vert_velocity < 0) ? -5.f : 5.f;
-      b2Vec2 ball_vertical_velocity = b2Vec2(
-        ball0.body->GetLinearVelocity().x,
-        new_vert_velocity);
-      ball0.body->SetLinearVelocity(ball_vertical_velocity);
+      new_vert_velocity = (vert_velocity < 0) ? -0.3f : 0.3f;
+      b2Vec2 ball_vertical_velocity = b2Vec2(0.f, new_vert_velocity);
+      ball0.body->ApplyForceToCenter(ball_vertical_velocity, true);
     }
 
     float horiz_velocity = ball0.body->GetLinearVelocity().x;
     if (std::abs(horiz_velocity) < ball0.speed)
     {
       float new_horiz_velocity;
-      new_horiz_velocity = (horiz_velocity < 0) ? -ball0.speed : ball0.speed;
-      b2Vec2 ball_horizical_velocity = b2Vec2(new_horiz_velocity, ball0.body->GetLinearVelocity().y);
-      ball0.body->SetLinearVelocity(ball_horizical_velocity);
+      new_horiz_velocity = (horiz_velocity < 0) ? -5.f : 5.f;
+      b2Vec2 ball_horizical_velocity = b2Vec2(new_horiz_velocity, 0.f);
+      ball0.body->ApplyForceToCenter(ball_horizical_velocity, true);
     }
 
     if (ball0.body->GetPosition().x < 0 || ball0.body->GetPosition().x > (SCREEN_WIDTH / SCALE))
     {
+      float choices[2] = {-1.f, 1.f};
+      std::srand(time(NULL));
+      int r = rand()%2;
+      float c = choices[r];
       ball0.body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
-      ball0.body->SetLinearVelocity(b2Vec2(random_float(-10.f, 10.f), random_float(-7.f, 7.f)));
+      ball0.body->SetLinearVelocity(b2Vec2(
+        ball0.speed * c,
+        random_float(-ball0.speed, ball0.speed)));
     }
 
-    ball0.shape->setRotation(ball0.body->GetAngle() * (180/PI));
-
+    ball0.body->SetAngularVelocity(0.f);
 
     for (b2Contact* contact = World.GetContactList();
          contact;
          contact = contact->GetNext())
     {
+    }
+
+    // write human data to file
+    if (playmode == 0)
+    {
+      float dist = std::abs(ball0.body->GetPosition().x - p1.body->GetPosition().x);
+      float diff = p1.body->GetPosition().y - ball0.body->GetPosition().y;
+      float vel_x = std::abs(ball0.body->GetLinearVelocity().x);
+      float vel_y = std::abs(ball0.body->GetLinearVelocity().y);
+      std::ostringstream buff;
+      buff << dist << delim << diff << delim << vel_x << delim << vel_y << delim << p1.target_y;
+      human_file << buff.str() << std::endl;
     }
 
     window.clear(sf::Color(110,110,110));
@@ -335,7 +362,12 @@ main (int argc, char ** argv)
     window.draw(*p2.shape);
     window.draw(*ball0.shape);
     window.display();
+
+    dt = clk.restart();
   }
+
+  human_file.close();
+  ai_file.close();
 
   return EXIT_SUCCESS;
 }
