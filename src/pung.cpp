@@ -59,18 +59,42 @@ main (int argc, char ** argv)
   try
   {
     TCLAP::CmdLine cmd("Test", ' ', "0.01");
-    TCLAP::ValueArg<std::string> nameArg(
+    TCLAP::ValueArg<std::string> filenameArg(
       "f",
       "filename",
       "File name",
       true,
       "/dev/null",
       "string");
-    cmd.add(nameArg);
-    cmd.parse(argc, argv);
-    std::string filename = nameArg.getValue();
 
-    std::cout << filename << "\n";
+    TCLAP::ValueArg<int> playmodeArg(
+      "p",
+      "playmode",
+      "Play mode",
+      true,
+      0,
+      "int");
+
+    cmd.add(filenameArg);
+    cmd.add(playmodeArg);
+    cmd.parse(argc, argv);
+    std::string filename = filenameArg.getValue();
+    int playmode = playmodeArg.getValue();
+
+    switch(playmode)
+    {
+      case 0:
+        std::cout << "Collecting human data..." << "\n";
+        std::cout << "Writing to " << filename << "\n";
+        break;
+      case 1:
+        std::cout << "Playing against AI" << "\n";
+        std::cout << "Reading from " << filename << "\n";
+        break;
+      default:
+        std::cout << "Undefined playmode!" << "\n";
+        return EXIT_SUCCESS;
+    }
   }
   catch (TCLAP::ArgException &e)
   {
