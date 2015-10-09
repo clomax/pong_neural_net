@@ -3,6 +3,7 @@
 #include <random>
 #include <SFML/Graphics.hpp>
 #include <Box2D/Box2D.h>
+#include <tclap/CmdLine.h>
 
 #define SCREEN_WIDTH 1024
 #define SCREEN_HEIGHT 550
@@ -54,6 +55,30 @@ random_float (float min, float max)
 int
 main (int argc, char ** argv)
 {
+
+  try
+  {
+    TCLAP::CmdLine cmd("Test", ' ', "0.01");
+    TCLAP::ValueArg<std::string> nameArg(
+      "f",
+      "filename",
+      "File name",
+      true,
+      "/dev/null",
+      "string");
+    cmd.add(nameArg);
+    cmd.parse(argc, argv);
+    std::string filename = nameArg.getValue();
+
+    std::cout << filename << "\n";
+  }
+  catch (TCLAP::ArgException &e)
+  {
+    std::cerr << "Error!\n";
+  }
+
+  return 0;
+
   sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
   //window.setMouseCursorVisible(false);
   window.setFramerateLimit(60);
