@@ -1,20 +1,19 @@
 source('lib/sigmoid.R')
 source('lib/splitTheta.R')
 
-prediction <- function(Arch, Theta, X) {
+prediction <- function(Arch, Theta, X)
+{
 
     # Get Theta1/2 back
     t <- splitTheta(Arch, Theta)
     Theta1 <- as.matrix(t[[1]])
     Theta2 <- as.matrix(t[[2]])
 
-    X <- as.matrix(cbind(1,X))
-    h1 <- sigmoid(X %*% Theta1)
+    a1 <- t(as.matrix(c(1,X)))
+    a2 <- sigmoid(a1 %*% Theta1)
 
-    h1 <- as.matrix(cbind(1,h1))
-    h2 <- sigmoid(h1 %*% Theta2)
+    a2 <- as.matrix(cbind(1,a2))
+    a3 <- sigmoid(a2 %*% Theta2)
 
-    #cat (paste("H1: ", h1, "\n", sep=" "))
-
-    return(h2)
+    return(a3)
 }

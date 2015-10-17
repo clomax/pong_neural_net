@@ -1,5 +1,5 @@
-splitTheta <- function(Arch, Theta) {
-
+splitTheta <- function(Arch, Theta)
+{
     In <- Arch[1]
     Hidden <- Arch[2]
     Out <- Arch[3]
