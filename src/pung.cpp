@@ -15,11 +15,7 @@
 #include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
-#define SCREEN_WIDTH 1024
-#define SCREEN_HEIGHT 550
-#define SCALE 30.f
-#define PI 3.14159
-#define E 2.71828182845904523536
+#include "paddle.hpp"
 
 namespace ublas = boost::numeric::ublas;
 typedef ublas::matrix<float> matrix;
@@ -37,17 +33,6 @@ typedef ublas::vector<float> vector;
  *  - Use R
  *  - Standard backprop. Worry about it not working later
  */
-
-struct paddle
-{
-  sf::RectangleShape *shape;
-  sf::Vector2f pos;
-  sf::Vector2f dim;
-  sf::Color colour;
-  b2Body *body;
-  float target_y;
-  int score = 0;
-};
 
 struct ball
 {
@@ -74,6 +59,13 @@ random_float (float min, float max)
   float random = ((float) rand()) / (float) RAND_MAX;
   float range = max - min;
   return (random*range) + min;
+}
+
+inline void
+asset_load_err (std::string asset)
+{
+  std::cerr << "Failed to load: " << asset << std::endl;
+  exit(EXIT_FAILURE);
 }
 
 int
@@ -205,67 +197,16 @@ main (int argc, char ** argv)
   b2World World(Gravity);
 
   // Create player paddle
-  std::unique_ptr<paddle> p1(new paddle);
-  p1->dim = sf::Vector2f(20,100);
-  p1->pos = sf::Vector2f(
-    50,
-    (SCREEN_HEIGHT / 2) - (p1->pos.y / 2));
-  p1->colour = sf::Color::Yellow;
-  p1->score = 0;
-
-  b2BodyDef p1_p1_paddle_body_def;
-  p1_p1_paddle_body_def.position = b2Vec2(p1->pos.x/SCALE, p1->pos.y/SCALE);
-  p1_p1_paddle_body_def.type = b2_staticBody;
-  b2Body* p1_paddle_body = World.CreateBody(&p1_p1_paddle_body_def);
-  p1->body = p1_paddle_body;
-
-  b2PolygonShape p1_b2_paddle_shape;
-  p1_b2_paddle_shape.SetAsBox((p1->dim.x/2)/SCALE, (p1->dim.y/2)/SCALE);
-
-  b2FixtureDef p1_b2_paddle_fixture_def;
-  p1_b2_paddle_fixture_def.shape = &p1_b2_paddle_shape;
-  p1_b2_paddle_fixture_def.density = 1.f;
-  p1->body->CreateFixture(&p1_b2_paddle_fixture_def);
-
-  sf::RectangleShape p1_shape;
-  p1->shape = &p1_shape;
-  p1->shape->setOrigin(sf::Vector2f(p1->dim.x/2, p1->dim.y/2));
-  p1->shape->setPosition(sf::Vector2f(p1->pos.x, p1->pos.y));
-  p1->shape->setSize(sf::Vector2f(p1->dim.x, p1->dim.y));
-  p1->shape->setFillColor(p1->colour);
-
+  sf::Vector2f pos = sf::Vector2f(50, (SCREEN_HEIGHT/2));
+  sf::Vector2f dim = sf::Vector2f(20,100);
+  sf::Color col = sf::Color::Yellow;
+  std::unique_ptr<paddle> p1 = create_paddle(&World, pos, dim, col);
 
   // Create AI paddle
-  std::unique_ptr<paddle> p2(new paddle);
-  p2->dim = sf::Vector2f(20,100);
-  p2->pos = sf::Vector2f(
-    (SCREEN_WIDTH - 50),
-    (SCREEN_HEIGHT / 2)
-  );
-  p2->colour = opponent_colour;
-  p2->score = 0;
-
-  b2BodyDef paddle_body_def;
-  paddle_body_def.position = b2Vec2(p2->pos.x/SCALE, p2->pos.y/SCALE);
-  paddle_body_def.type = b2_staticBody;
-  b2Body* paddle_body = World.CreateBody(&paddle_body_def);
-  p2->body = paddle_body;
-
-  b2PolygonShape b2_paddle_shape;
-  b2_paddle_shape.SetAsBox((p2->dim.x/2)/SCALE, (p2->dim.y/2)/SCALE);
-
-  b2FixtureDef b2_paddle_fixture_def;
-  b2_paddle_fixture_def.shape = &b2_paddle_shape;
-  b2_paddle_fixture_def.density = 1.f;
-  p2->body->CreateFixture(&b2_paddle_fixture_def);
-
-  sf::RectangleShape p2_shape;
-  p2->shape = &p2_shape;
-  p2->shape->setOrigin(sf::Vector2f(p2->dim.x/2, p2->dim.y/2));
-  p2->shape->setPosition(sf::Vector2f(p2->pos.x, p2->pos.y));
-  p2->shape->setSize(sf::Vector2f(p2->dim.x, p2->dim.y));
-  p2->shape->setFillColor(p2->colour);
-
+  pos = sf::Vector2f((SCREEN_WIDTH-50), (SCREEN_HEIGHT/2));
+  dim = sf::Vector2f(20,100);
+  col = opponent_colour;
+  std::unique_ptr<paddle> p2 = create_paddle(&World, pos, dim, col);
 
   // Create divider
   sf::RectangleShape divider;
@@ -280,7 +221,11 @@ main (int argc, char ** argv)
   b->colour = sf::Color::Red;
 
   sf::Texture ball_texture;
-  ball_texture.loadFromFile("assets/images/ball.png");
+  std::string ball_img = "assets/images/ball.png";
+  if(!ball_texture.loadFromFile(ball_img))
+  {
+    asset_load_err(ball_img);
+  }
 
   sf::CircleShape ball_shape;
   b->shape = &ball_shape;
@@ -310,10 +255,10 @@ main (int argc, char ** argv)
 
   // create paddle score text things
   sf::Font score_font;
-  if(!score_font.loadFromFile("assets/fonts/Precursive.otf"))
+  std::string font_file = "assets/fonts/Precursive.otf";
+  if(!score_font.loadFromFile(font_file))
   {
-    std::cerr << "Font failed to load!" << "\n";
-    return(EXIT_FAILURE);
+    asset_load_err(font_file);
   }
 
   sf::Text p1_score;
@@ -396,7 +341,7 @@ main (int argc, char ** argv)
     p1_position.y = p1->target_y - (p1->target_y - p1_position.y) * damping;
     p1->body->SetTransform(p1_position, 0);
 
-    p1->shape->setPosition(
+    p1->shape.setPosition(
       SCALE * p1->body->GetPosition().x,
       SCALE * p1->body->GetPosition().y);
 
@@ -442,7 +387,7 @@ main (int argc, char ** argv)
 
     p2->body->SetTransform(p2_position, 0);
 
-    p2->shape->setPosition(
+    p2->shape.setPosition(
       SCALE * p2->body->GetPosition().x,
       SCALE * p2->body->GetPosition().y);
 
@@ -501,8 +446,8 @@ main (int argc, char ** argv)
     window.draw(p1_score);
     window.draw(p2_score);
     window.draw(divider);
-    window.draw(*p1->shape);
-    window.draw(*p2->shape);
+    window.draw(p1->shape);
+    window.draw(p2->shape);
     window.draw(*b->shape);
     window.display();
 
