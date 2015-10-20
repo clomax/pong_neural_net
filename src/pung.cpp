@@ -5,6 +5,7 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
+#include <memory>
 #include <cmath>
 #include <stdlib.h>
 #include <SFML/Graphics.hpp>
@@ -204,7 +205,7 @@ main (int argc, char ** argv)
   b2World World(Gravity);
 
   // Create player paddle
-  paddle* p1 = (paddle*)malloc(sizeof(paddle));
+  std::unique_ptr<paddle> p1(new paddle);
   p1->dim = sf::Vector2f(20,100);
   p1->pos = sf::Vector2f(
     50,
@@ -235,7 +236,7 @@ main (int argc, char ** argv)
 
 
   // Create AI paddle
-  paddle* p2 = (paddle*)malloc(sizeof(paddle));
+  std::unique_ptr<paddle> p2(new paddle);
   p2->dim = sf::Vector2f(20,100);
   p2->pos = sf::Vector2f(
     (SCREEN_WIDTH - 50),
@@ -273,7 +274,7 @@ main (int argc, char ** argv)
   divider.setFillColor(sf::Color(200,200,200));
 
   // Create ball
-  ball* b = (ball*)malloc(sizeof(ball));
+  std::unique_ptr<ball> b(new ball);
   b->radius = 20.0f;
   b->speed = 25.f;
   b->colour = sf::Color::Red;
@@ -507,10 +508,6 @@ main (int argc, char ** argv)
 
     dt = clk.restart();
   }
-
-  free(p1);
-  free(p2);
-  free(b);
 
   if (human_file.is_open())
     human_file.close();
