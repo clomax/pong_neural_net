@@ -16,6 +16,8 @@
 #include <boost/numeric/ublas/io.hpp>
 
 #include "paddle.hpp"
+#include "ball.hpp"
+#include "util.hpp"
 
 namespace ublas = boost::numeric::ublas;
 typedef ublas::matrix<float> matrix;
@@ -34,15 +36,6 @@ typedef ublas::vector<float> vector;
  *  - Standard backprop. Worry about it not working later
  */
 
-struct ball
-{
-  b2Body *body;
-  sf::CircleShape *shape;
-  sf::Color colour;
-  float radius;
-  float speed;
-};
-
 inline vector
 sigmoid(vector z)
 {
@@ -51,14 +44,6 @@ sigmoid(vector z)
     z(i) = (1.f / (1.f + std::pow(E, -z(i))));
   }
   return z;
-}
-
-inline float
-random_float (float min, float max)
-{
-  float random = ((float) rand()) / (float) RAND_MAX;
-  float range = max - min;
-  return (random*range) + min;
 }
 
 inline void
@@ -215,43 +200,11 @@ main (int argc, char ** argv)
   divider.setFillColor(sf::Color(200,200,200));
 
   // Create ball
-  std::unique_ptr<ball> b(new ball);
-  b->radius = 20.0f;
-  b->speed = 25.f;
-  b->colour = sf::Color::Red;
-
+  float rad = 20.f;
   sf::Texture ball_texture;
-  std::string ball_img = "assets/images/ball.png";
-  if(!ball_texture.loadFromFile(ball_img))
-  {
-    asset_load_err(ball_img);
-  }
-
-  sf::CircleShape ball_shape;
-  b->shape = &ball_shape;
-  b->shape->setRadius(b->radius);
-  b->shape->setOrigin(sf::Vector2f((b->radius),(b->radius)));
-  b->shape->setTexture(&ball_texture);
-
-  b2BodyDef ball_body_def;
-  ball_body_def.position = b2Vec2(10/SCALE,10/SCALE);
-  ball_body_def.type = b2_dynamicBody;
-
-  b2Body* ball_body = World.CreateBody(&ball_body_def);
-  b->body = ball_body;
-
-  ball_body->SetUserData(&b);
-
-  b2CircleShape b2_ball_shape;
-  b2_ball_shape.m_radius = b->radius/SCALE;
-
-  b2FixtureDef b2_ball_fixture_def;
-  b2_ball_fixture_def.shape = &b2_ball_shape;
-  b2_ball_fixture_def.density = 1.f;
-  b2_ball_fixture_def.restitution = 1.f;
-  b->body->CreateFixture(&b2_ball_fixture_def);
-  b->body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
-  b->body->SetLinearVelocity(b2Vec2(-b->speed, random_float(-3.f, 3.f)));
+  ball_texture.loadFromFile("assets/images/ball.png");
+  std::unique_ptr<ball> b = create_ball(&World, rad);
+  b->shape.setTexture(&ball_texture);
 
   // create paddle score text things
   sf::Font score_font;
@@ -325,7 +278,7 @@ main (int argc, char ** argv)
       window.close();
     }
 
-    b->shape->setPosition(
+    b->shape.setPosition(
       SCALE * b->body->GetPosition().x,
       SCALE * b->body->GetPosition().y);
 
@@ -373,8 +326,6 @@ main (int argc, char ** argv)
       float p2_target = b->body->GetPosition().y;
       p2_target = (h(0) * SCREEN_HEIGHT/SCALE);
       p2_position.y = p2_target - (p2_target - p2_position.y) * damping;
-
-      //draw neural net
     }
     else
     {
@@ -426,8 +377,7 @@ main (int argc, char ** argv)
         random_float(-b->speed, b->speed)));
     }
 
-    //b->body->SetAngularVelocity(0.f);
-    b->shape->setRotation(b->body->GetAngle() * (180 / PI));
+    b->shape.setRotation(b->body->GetAngle() * (180 / PI));
 
     // write human data to file
     if (playmode == 0)
@@ -448,7 +398,7 @@ main (int argc, char ** argv)
     window.draw(divider);
     window.draw(p1->shape);
     window.draw(p2->shape);
-    window.draw(*b->shape);
+    window.draw(b->shape);
     window.display();
 
     dt = clk.restart();
