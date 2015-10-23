@@ -1,7 +1,6 @@
 *.swp
 
 build/*
-data/*
 tmp/*
 src/learning/img/*
 src/learning/\.*
