@@ -30,8 +30,6 @@ struct entity
   entity_type type;
 
   sf::Sprite *sprite;
-  sf::RectangleShape *rect_shape;
-  sf::CircleShape *circ_shape;
   b2Body *rigidbody;
 
   sf::Vector2f position;

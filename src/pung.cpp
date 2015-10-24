@@ -170,6 +170,9 @@ main (int argc, char ** argv)
   sf::Texture paddle_texture;
   paddle_texture.loadFromFile("assets/images/paddle.png");
 
+  sf::Texture ball_texture;
+  ball_texture.loadFromFile("assets/images/ball.png");
+
   // Create player paddle
   sf::Vector2f pos = sf::Vector2f(50, (SCREEN_HEIGHT/2));
   sf::Vector2f dim = sf::Vector2f(20,100);
@@ -192,19 +195,12 @@ main (int argc, char ** argv)
   p2->type = entity_paddle;
   p2->component_flags |=
     component_sprite|component_rigidbody|component_position|component_dimensions|component_colour;
-  p2->sprite = &p2_sprite;
-  p2->sprite->setPosition(pos);
-  p2->sprite->setColor(col);
-  p2->sprite->setTexture(paddle_texture);
-  p2->sprite->setTextureRect(sf::IntRect(0,0,dim.x,dim.y));
-  p2->sprite->setOrigin(sf::Vector2f(dim.x/2, dim.y/2));
+  build_entity(p2, &p2_sprite, pos, dim, paddle_texture, col);
   entities.push_back(p2);
 
 
   dim = sf::Vector2f(50,50);
   pos = sf::Vector2f((SCREEN_WIDTH/2),(SCREEN_HEIGHT/2));
-  sf::Texture ball_texture;
-  ball_texture.loadFromFile("assets/images/ball.png");
 
   sf::Sprite ball_sprite;
   entity* ball = (entity*)malloc(sizeof(entity));
@@ -224,9 +220,8 @@ main (int argc, char ** argv)
       window.close();
 
     window.clear(sf::Color(110,110,110));
-    window.draw(*(p1->sprite));
-    window.draw(*(p2->sprite));
-    window.draw(*(ball->sprite));
+    for(entity* e : entities)
+      window.draw(*(e)->sprite);
     window.display();
   }
 
