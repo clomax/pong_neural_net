@@ -15,26 +15,13 @@
 #include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
-#include "paddle.hpp"
-#include "ball.hpp"
+#include "entity.hpp"
 #include "util.hpp"
 
 namespace ublas = boost::numeric::ublas;
 typedef ublas::matrix<float> matrix;
 typedef ublas::vector<float> vector;
 
-/*
- * Collect data:
- *  - Distance between ball and paddle
- *  - Linear velocity of ball
- *  - Direction of ball travel [-1 away, 1 toward] (?)
- *  - Difference between paddle Y and ball Y
- *  - Output: target value
- *
- * Learn from data:
- *  - Use R
- *  - Standard backprop. Worry about it not working later
- */
 
 inline vector
 sigmoid(vector z)
@@ -65,7 +52,6 @@ main (int argc, char ** argv)
   std::string filename;
   int playmode;
   int hidden_nodes;
-  sf::Color opponent_colour;
 
   float framerate = 60.f;
   int inputs = 5;
@@ -112,14 +98,12 @@ main (int argc, char ** argv)
         std::cout << "Collecting human data..." << "\n";
         std::cout << "Writing to " << filepath << filename << "\n";
         human_file.open(filepath + filename, std::ios_base::app);
-        opponent_colour = sf::Color::Green;
         break;
       case 1:
         filepath = "data/ai/";
         std::cout << "Playing against AI" << "\n";
         std::cout << "Reading from " << filepath << filename << "\n";
         ai_file.open(filepath + filename);
-        opponent_colour = sf::Color::Red;
         break;
       default:
         std::cerr << "Unknown playmode!" << "\n";
@@ -181,12 +165,74 @@ main (int argc, char ** argv)
   b2Vec2 Gravity(0.0f, 0.0f);
   b2World World(Gravity);
 
+  std::vector<entity*> entities;
+
+  sf::Texture paddle_texture;
+  paddle_texture.loadFromFile("assets/images/paddle.png");
+
   // Create player paddle
   sf::Vector2f pos = sf::Vector2f(50, (SCREEN_HEIGHT/2));
   sf::Vector2f dim = sf::Vector2f(20,100);
   sf::Color col = sf::Color::Yellow;
-  std::unique_ptr<paddle> p1 = create_paddle(&World, pos, dim, col);
+  sf::Sprite p1_sprite;
 
+  entity* p1 = (entity*)malloc(sizeof(entity));
+  p1->type = entity_paddle;
+  p1->component_flags |=
+    component_sprite|component_rigidbody|component_position|component_dimensions|component_colour;
+  build_entity(p1, &p1_sprite, pos, dim, paddle_texture, col);
+  entities.push_back(p1);
+
+  // Create AI paddle
+  pos = sf::Vector2f((SCREEN_WIDTH-50), (SCREEN_HEIGHT/2));
+  col = (playmode == 0) ? sf::Color::Green : sf::Color::Red;
+  sf::Sprite p2_sprite;
+
+  entity* p2 = (entity*)malloc(sizeof(entity));
+  p2->type = entity_paddle;
+  p2->component_flags |=
+    component_sprite|component_rigidbody|component_position|component_dimensions|component_colour;
+  p2->sprite = &p2_sprite;
+  p2->sprite->setPosition(pos);
+  p2->sprite->setColor(col);
+  p2->sprite->setTexture(paddle_texture);
+  p2->sprite->setTextureRect(sf::IntRect(0,0,dim.x,dim.y));
+  p2->sprite->setOrigin(sf::Vector2f(dim.x/2, dim.y/2));
+  entities.push_back(p2);
+
+
+  dim = sf::Vector2f(50,50);
+  pos = sf::Vector2f((SCREEN_WIDTH/2),(SCREEN_HEIGHT/2));
+  sf::Texture ball_texture;
+  ball_texture.loadFromFile("assets/images/ball.png");
+
+  sf::Sprite ball_sprite;
+  entity* ball = (entity*)malloc(sizeof(entity));
+  ball->type = entity_ball;
+  ball->component_flags |=
+    component_sprite|component_rigidbody|component_position;
+  ball->sprite = &ball_sprite;
+  ball->sprite->setPosition(pos);
+  ball->sprite->setTexture(ball_texture);
+  ball->sprite->setTextureRect(sf::IntRect(0,0,dim.x,dim.y));
+  ball->sprite->setOrigin(sf::Vector2f(dim.x/2, dim.y/2));
+  entities.push_back(ball);
+
+  while (window.isOpen())
+  {
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
+      window.close();
+
+    window.clear(sf::Color(110,110,110));
+    window.draw(*(p1->sprite));
+    window.draw(*(p2->sprite));
+    window.draw(*(ball->sprite));
+    window.display();
+  }
+
+  return EXIT_SUCCESS;
+}
+/*
   // Create AI paddle
   pos = sf::Vector2f((SCREEN_WIDTH-50), (SCREEN_HEIGHT/2));
   dim = sf::Vector2f(20,100);
@@ -406,6 +452,6 @@ main (int argc, char ** argv)
 
   if (human_file.is_open())
     human_file.close();
-
   return EXIT_SUCCESS;
 }
+*/
