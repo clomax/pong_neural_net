@@ -6,5 +6,12 @@ C_FLAGS = -Wall -Wextra -std=c++11
 L_FLAGS = -lsfml-graphics -lsfml-window -lsfml-system -lBox2D
 INCLUDE = -I/usr/include/SFML -I/usr/local/include/Box2D -I/usr/include/boost
 
+DEBUG_OBJ_NAME = build/debug_pung
+D_CC = g++
+DEBUG_FLAGS = -g
+
 all: $(OBJS)
 	$(CC) $(OBJS) $(C_FLAGS) $(L_FLAGS) $(INCLUDE) -o $(OBJ_NAME)
+
+debug: $(OBJS)
+	$(D_CC) $(OBJS) $(C_FLAGS) $(DEBUG_FLAGS) $(L_FLAGS) $(INCLUDE) -o $(DEBUG_OBJ_NAME)
