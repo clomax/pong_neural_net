@@ -159,94 +159,144 @@ main (int argc, char ** argv)
 
   // Do window stuff
   sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
-  window.setMouseCursorVisible(false);
+  //window.setMouseCursorVisible(false);
   window.setFramerateLimit(60);
 
-  b2Vec2 Gravity(0.0f, 0.0f);
+  b2Vec2 Gravity(0.f, 0.f);
   b2World World(Gravity);
 
   std::vector<entity*> entities;
 
-  sf::Texture paddle_texture;
-  paddle_texture.loadFromFile("assets/images/paddle.png");
+  sf::Texture blank_texture;
+  blank_texture.loadFromFile("assets/images/blank.png");
 
   sf::Texture ball_texture;
   ball_texture.loadFromFile("assets/images/ball.png");
 
   // Create player paddle
-  sf::Vector2f pos = sf::Vector2f(50, (SCREEN_HEIGHT/2));
-  sf::Vector2f dim = sf::Vector2f(20,100);
-  sf::Color col = sf::Color::Yellow;
   sf::Sprite p1_sprite;
-
   entity* p1 = (entity*)malloc(sizeof(entity));
+  p1->position = sf::Vector2f(50.f, (SCREEN_HEIGHT/2.f));
+  p1->dimensions = sf::Vector2f(20.f,100.f);
   p1->type = entity_paddle;
-  p1->component_flags |=
-    component_sprite|component_rigidbody|component_position|component_dimensions|component_colour;
-  build_entity(p1, &p1_sprite, pos, dim, paddle_texture, col);
+  p1->component_flags =
+    component_sprite|component_rigidbody|component_position|component_dimensions|component_colour|component_playercontrol;
+  p1->rigidbody_shape = rigidbody_rectangle;
+  p1->rigidbody_type = rigidbody_static;
+  build_sprite(p1, &p1_sprite, &blank_texture);
+  build_rigidbody(p1, &World, p1->rigidbody_type, p1->rigidbody_shape);
+  p1->sprite->setColor(sf::Color::Yellow);
   entities.push_back(p1);
 
   // Create AI paddle
-  pos = sf::Vector2f((SCREEN_WIDTH-50), (SCREEN_HEIGHT/2));
-  col = (playmode == 0) ? sf::Color::Green : sf::Color::Red;
   sf::Sprite p2_sprite;
-
   entity* p2 = (entity*)malloc(sizeof(entity));
+  p2->position = sf::Vector2f((SCREEN_WIDTH-50.f), (SCREEN_HEIGHT/2.f));
+  p2->dimensions = sf::Vector2f(20.f,100.f);
   p2->type = entity_paddle;
-  p2->component_flags |=
+  p2->component_flags =
     component_sprite|component_rigidbody|component_position|component_dimensions|component_colour;
-  build_entity(p2, &p2_sprite, pos, dim, paddle_texture, col);
+  p2->rigidbody_shape = rigidbody_rectangle;
+  p2->rigidbody_type = rigidbody_static;
+  build_sprite(p2, &p2_sprite, &blank_texture);
+  build_rigidbody(p2, &World, p2->rigidbody_type, p2->rigidbody_shape);
+  p2->sprite->setColor((playmode == 0) ? sf::Color::Green : sf::Color::Red);
   entities.push_back(p2);
 
 
-  dim = sf::Vector2f(50,50);
-  pos = sf::Vector2f((SCREEN_WIDTH/2),(SCREEN_HEIGHT/2));
-
+  // create ball
   sf::Sprite ball_sprite;
   entity* ball = (entity*)malloc(sizeof(entity));
+  ball->position = sf::Vector2f((SCREEN_WIDTH/2),(SCREEN_HEIGHT/2));
+  ball->dimensions = sf::Vector2f(50,50);
+  ball->radius = 0.5f;
   ball->type = entity_ball;
-  ball->component_flags |=
-    component_sprite|component_rigidbody|component_position;
-  ball->sprite = &ball_sprite;
-  ball->sprite->setPosition(pos);
-  ball->sprite->setTexture(ball_texture);
-  ball->sprite->setTextureRect(sf::IntRect(0,0,dim.x,dim.y));
-  ball->sprite->setOrigin(sf::Vector2f(dim.x/2, dim.y/2));
+  ball->component_flags = component_sprite|component_rigidbody|component_position;
+  ball->rigidbody_shape = rigidbody_circle;
+  ball->rigidbody_type = rigidbody_dynamic;
+  ball->restitution = 1.f;
+  build_sprite(ball, &ball_sprite, &ball_texture);
+  ball->sprite->setScale(sf::Vector2f(ball->radius,ball->radius));
+  build_rigidbody(ball, &World, ball->rigidbody_type, ball->rigidbody_shape);
   entities.push_back(ball);
 
+  // Create divider
+  sf::Sprite divider_sprite;
+  entity* divider = (entity*)malloc(sizeof(entity));
+  divider->position = sf::Vector2f((SCREEN_WIDTH/2)+5,0);
+  divider->dimensions = sf::Vector2f(10,SCREEN_HEIGHT);
+  divider->type = entity_static;
+  divider->component_flags = component_sprite|component_position;
+  build_sprite(divider, &divider_sprite, &blank_texture);
+  divider->sprite->setOrigin(0,0);
+  divider->sprite->setColor(sf::Color(200,200,200));
+
+  // make sure that the divider is drawn below everything else
+  auto it = entities.begin();
+  it = entities.insert(it,divider);
+
+  //create walls
+  entity* wall0 = (entity*)malloc(sizeof(entity));
+  wall0->position = sf::Vector2f((SCREEN_WIDTH/2),0);
+  wall0->dimensions = sf::Vector2f(SCREEN_WIDTH,1);
+  wall0->type = entity_static;
+  wall0->rigidbody_shape = rigidbody_rectangle;
+  wall0->rigidbody_type = rigidbody_static;
+  wall0->component_flags = component_position|component_rigidbody|component_dimensions;
+  build_rigidbody(wall0, &World, wall0->rigidbody_type, wall0->rigidbody_shape);
+  entities.push_back(wall0);
+
+  entity* wall1 = (entity*)malloc(sizeof(entity));
+  wall1->position = sf::Vector2f((SCREEN_WIDTH/2),SCREEN_HEIGHT);
+  wall1->dimensions = sf::Vector2f(SCREEN_WIDTH,1);
+  wall1->type = entity_static;
+  wall1->rigidbody_shape = rigidbody_rectangle;
+  wall1->rigidbody_type = rigidbody_static;
+  wall1->component_flags = component_position|component_rigidbody|component_dimensions;
+  build_rigidbody(wall1, &World, wall1->rigidbody_type, wall1->rigidbody_shape);
+  entities.push_back(wall1);
+
+  ball->rigidbody->SetLinearVelocity(b2Vec2(-20.f,0.f));
+
+  sf::Clock clk;
+  sf::Time dt;
   while (window.isOpen())
   {
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
       window.close();
 
+    float mouse_y = sf::Mouse::getPosition(window).y;
+
     window.clear(sf::Color(110,110,110));
     for(entity* e : entities)
-      window.draw(*(e)->sprite);
+    {
+      if(flag_is_set(e, component_playercontrol))
+      {
+        e->rigidbody->SetTransform(b2Vec2(e->rigidbody->GetPosition().x, mouse_y/SCALE), 0);
+      }
+
+      if(flag_is_set(e, component_rigidbody) && flag_is_set(e, component_sprite))
+      {
+        e->sprite->setPosition(
+          e->rigidbody->GetPosition().x * SCALE,
+          e->rigidbody->GetPosition().y * SCALE);
+
+        e->sprite->setRotation(e->rigidbody->GetAngle());
+      }
+
+      if (flag_is_set(e, component_sprite))
+      {
+        window.draw(*(e)->sprite);
+      }
+    }
     window.display();
+    World.Step(1.f/framerate, 8, 3);
+    dt = clk.restart();
   }
 
-  return EXIT_SUCCESS;
+  return(EXIT_SUCCESS);
 }
 /*
-  // Create AI paddle
-  pos = sf::Vector2f((SCREEN_WIDTH-50), (SCREEN_HEIGHT/2));
-  dim = sf::Vector2f(20,100);
-  col = opponent_colour;
-  std::unique_ptr<paddle> p2 = create_paddle(&World, pos, dim, col);
-
-  // Create divider
-  sf::RectangleShape divider;
-  divider.setSize(sf::Vector2f(10, SCREEN_HEIGHT));
-  divider.setPosition(sf::Vector2f((SCREEN_WIDTH / 2) + 5, 0));
-  divider.setFillColor(sf::Color(200,200,200));
-
-  // Create ball
-  float rad = 20.f;
-  sf::Texture ball_texture;
-  ball_texture.loadFromFile("assets/images/ball.png");
-  std::unique_ptr<ball> b = create_ball(&World, rad);
-  b->shape.setTexture(&ball_texture);
-
   // create paddle score text things
   sf::Font score_font;
   std::string font_file = "assets/fonts/Precursive.otf";
@@ -270,32 +320,6 @@ main (int argc, char ** argv)
   p2_score.setOrigin(p2_score.getScale()/2.f);
 
   // Create walls
-  b2BodyDef w0_body_def;
-  w0_body_def.position = b2Vec2((SCREEN_WIDTH/2)/SCALE, 0);
-  w0_body_def.type = b2_staticBody;
-  b2Body* w0_body = World.CreateBody(&w0_body_def);
-
-  b2PolygonShape b2_wall_shape;
-  b2_wall_shape.SetAsBox((SCREEN_WIDTH/SCALE), 1/SCALE);
-
-  b2FixtureDef b2_wall_fixture_def;
-  b2_wall_fixture_def.shape = &b2_wall_shape;
-  b2_wall_fixture_def.density = 1.f;
-  w0_body->CreateFixture(&b2_wall_fixture_def);
-
-
-  b2BodyDef w1_body_def;
-  w1_body_def.position = b2Vec2((SCREEN_WIDTH/2)/SCALE, SCREEN_HEIGHT/SCALE);
-  w1_body_def.type = b2_staticBody;
-  b2Body* w1_body = World.CreateBody(&w1_body_def);
-
-  b2PolygonShape b2_wall1_shape;
-  b2_wall1_shape.SetAsBox((SCREEN_WIDTH/SCALE), 1/SCALE);
-
-  b2FixtureDef b2_wall1_fixture_def;
-  b2_wall_fixture_def.shape = &b2_wall1_shape;
-  b2_wall_fixture_def.density = 1.f;
-  w1_body->CreateFixture(&b2_wall_fixture_def);
 
   sf::Mouse::setPosition(sf::Vector2i(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), window);
 
