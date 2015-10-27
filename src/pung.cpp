@@ -15,26 +15,14 @@
 #include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
-#include "paddle.hpp"
-#include "ball.hpp"
+#include "entity.hpp"
+#include "components.hpp"
+#include "systems.hpp"
 #include "util.hpp"
 
 namespace ublas = boost::numeric::ublas;
 typedef ublas::matrix<float> matrix;
 typedef ublas::vector<float> vector;
-
-/*
- * Collect data:
- *  - Distance between ball and paddle
- *  - Linear velocity of ball
- *  - Direction of ball travel [-1 away, 1 toward] (?)
- *  - Difference between paddle Y and ball Y
- *  - Output: target value
- *
- * Learn from data:
- *  - Use R
- *  - Standard backprop. Worry about it not working later
- */
 
 inline vector
 sigmoid(vector z)
@@ -46,26 +34,16 @@ sigmoid(vector z)
   return z;
 }
 
-inline void
-asset_load_err (std::string asset)
-{
-  std::cerr << "Failed to load: " << asset << std::endl;
-  exit(EXIT_FAILURE);
-}
-
 int
 main (int argc, char ** argv)
 {
   std::ofstream human_file;
   std::ifstream ai_file;
 
-  const std::string delim = ",";
-
   std::string filepath;
   std::string filename;
   int playmode;
   int hidden_nodes;
-  sf::Color opponent_colour;
 
   float framerate = 60.f;
   int inputs = 5;
@@ -112,14 +90,12 @@ main (int argc, char ** argv)
         std::cout << "Collecting human data..." << "\n";
         std::cout << "Writing to " << filepath << filename << "\n";
         human_file.open(filepath + filename, std::ios_base::app);
-        opponent_colour = sf::Color::Green;
         break;
       case 1:
         filepath = "data/ai/";
         std::cout << "Playing against AI" << "\n";
         std::cout << "Reading from " << filepath << filename << "\n";
         ai_file.open(filepath + filename);
-        opponent_colour = sf::Color::Red;
         break;
       default:
         std::cerr << "Unknown playmode!" << "\n";
@@ -173,100 +149,85 @@ main (int argc, char ** argv)
     }
   }
 
+  sf::Texture blank_texture;
+  blank_texture.loadFromFile("assets/images/blank.png");
+
+  sf::Texture ball_texture;
+  ball_texture.loadFromFile("assets/images/ball.png");
+
+  sf::Font score_font;
+  score_font.loadFromFile("assets/fonts/Precursive.otf");
+
   // Do window stuff
   sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
   window.setMouseCursorVisible(false);
   window.setFramerateLimit(60);
 
-  b2Vec2 Gravity(0.0f, 0.0f);
-  b2World World(Gravity);
-
-  // Create player paddle
-  sf::Vector2f pos = sf::Vector2f(50, (SCREEN_HEIGHT/2));
-  sf::Vector2f dim = sf::Vector2f(20,100);
-  sf::Color col = sf::Color::Yellow;
-  std::unique_ptr<paddle> p1 = create_paddle(&World, pos, dim, col);
-
-  // Create AI paddle
-  pos = sf::Vector2f((SCREEN_WIDTH-50), (SCREEN_HEIGHT/2));
-  dim = sf::Vector2f(20,100);
-  col = opponent_colour;
-  std::unique_ptr<paddle> p2 = create_paddle(&World, pos, dim, col);
-
-  // Create divider
-  sf::RectangleShape divider;
-  divider.setSize(sf::Vector2f(10, SCREEN_HEIGHT));
-  divider.setPosition(sf::Vector2f((SCREEN_WIDTH / 2) + 5, 0));
-  divider.setFillColor(sf::Color(200,200,200));
-
-  // Create ball
-  float rad = 20.f;
-  sf::Texture ball_texture;
-  ball_texture.loadFromFile("assets/images/ball.png");
-  std::unique_ptr<ball> b = create_ball(&World, rad);
-  b->shape.setTexture(&ball_texture);
-
-  // create paddle score text things
-  sf::Font score_font;
-  std::string font_file = "assets/fonts/Precursive.otf";
-  if(!score_font.loadFromFile(font_file))
-  {
-    asset_load_err(font_file);
-  }
-
-  sf::Text p1_score;
-  p1_score.setFont(score_font);
-  p1_score.setString(std::to_string(p1->score));
-  p1_score.setCharacterSize(32);
-  p1_score.setPosition((SCREEN_WIDTH/2) - 50,10);
-  p1_score.setOrigin(p1_score.getScale()/2.f);
-
-  sf::Text p2_score;
-  p2_score.setFont(score_font);
-  p2_score.setString(std::to_string(p2->score));
-  p2_score.setCharacterSize(32);
-  p2_score.setPosition((SCREEN_WIDTH/2) + 50,10);
-  p2_score.setOrigin(p2_score.getScale()/2.f);
-
-  // Create walls
-  b2BodyDef w0_body_def;
-  w0_body_def.position = b2Vec2((SCREEN_WIDTH/2)/SCALE, 0);
-  w0_body_def.type = b2_staticBody;
-  b2Body* w0_body = World.CreateBody(&w0_body_def);
-
-  b2PolygonShape b2_wall_shape;
-  b2_wall_shape.SetAsBox((SCREEN_WIDTH/SCALE), 1/SCALE);
-
-  b2FixtureDef b2_wall_fixture_def;
-  b2_wall_fixture_def.shape = &b2_wall_shape;
-  b2_wall_fixture_def.density = 1.f;
-  w0_body->CreateFixture(&b2_wall_fixture_def);
+  b2Vec2 Gravity(0.f, 0.f);
+  b2World PhysicsWorld(Gravity);
 
 
-  b2BodyDef w1_body_def;
-  w1_body_def.position = b2Vec2((SCREEN_WIDTH/2)/SCALE, SCREEN_HEIGHT/SCALE);
-  w1_body_def.type = b2_staticBody;
-  b2Body* w1_body = World.CreateBody(&w1_body_def);
+  Mem world = createWorld();
 
-  b2PolygonShape b2_wall1_shape;
-  b2_wall1_shape.SetAsBox((SCREEN_WIDTH/SCALE), 1/SCALE);
+  unsigned int divider = createEntity(&world);
+  world.type[divider].type = entity_static;
+  add_sprite(&world, divider, &blank_texture,
+             sf::Vector2f(SCREEN_WIDTH/2,SCREEN_HEIGHT/2),
+             sf::Vector2f(10,SCREEN_HEIGHT));
+  world.sprite[divider].sprite.setColor(sf::Color(200,200,200));
 
-  b2FixtureDef b2_wall1_fixture_def;
-  b2_wall_fixture_def.shape = &b2_wall1_shape;
-  b2_wall_fixture_def.density = 1.f;
-  w1_body->CreateFixture(&b2_wall_fixture_def);
+  unsigned int ball = createEntity(&world);
+  world.type[ball].type = entity_ball;
+  add_sprite(&world, ball, &ball_texture,
+             sf::Vector2f(SCREEN_WIDTH/2,SCREEN_HEIGHT/2),
+             sf::Vector2f(50,50));
+  world.rigidbody[ball].radius = 0.5f;
+  world.rigidbody[ball].speed = 20.f;
+  add_rigidbody(&world, ball, &PhysicsWorld, rigidbody_dynamic, rigidbody_circle);
+  world.sprite[ball].sprite.setScale(sf::Vector2f(0.75f,0.75f));
 
-  sf::Mouse::setPosition(sf::Vector2i(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), window);
+  unsigned int p1 = createEntity(&world, component_playercontrol);
+  world.type[p1].type = entity_paddle;
+  add_sprite(&world, p1, &blank_texture,
+             sf::Vector2f(50,SCREEN_HEIGHT/2),
+             sf::Vector2f(20,100));
+  world.sprite[p1].sprite.setColor(sf::Color::Yellow);
+  add_rigidbody(&world, p1, &PhysicsWorld, rigidbody_static, rigidbody_rectangle);
+  add_agent(&world, p1);
+
+  unsigned int p2 = createEntity(&world);
+  world.type[p2].type = entity_paddle;
+  add_sprite(&world, p2, &blank_texture,
+             sf::Vector2f(SCREEN_WIDTH-50,SCREEN_HEIGHT/2),
+             sf::Vector2f(20,100));
+  add_rigidbody(&world, p2, &PhysicsWorld, rigidbody_static, rigidbody_rectangle);
+  add_agent(&world, p2);
+  (playmode == 0)
+    ? world.sprite[p2].sprite.setColor(sf::Color::Green)
+    : world.sprite[p2].sprite.setColor(sf::Color::Red);
+
+  unsigned int p1_score = createEntity(&world, component_text);
+  add_text(&world, p1_score, p1, &score_font, 32, sf::Vector2f((SCREEN_WIDTH/4),10));
+
+  unsigned int p2_score = createEntity(&world, component_text);
+  add_text(&world, p2_score, p2, &score_font, 32, sf::Vector2f(SCREEN_WIDTH-(SCREEN_WIDTH/4),10));
+
+  unsigned int wall0 = createEntity(&world);
+  add_rigidbody(&world, wall0, &PhysicsWorld, rigidbody_static, rigidbody_rectangle,
+    sf::Vector2f((SCREEN_WIDTH/2),0), sf::Vector2f(SCREEN_WIDTH,1));
+
+  unsigned int wall1 = createEntity(&world);
+  add_rigidbody(&world, wall1, &PhysicsWorld, rigidbody_static, rigidbody_rectangle,
+    sf::Vector2f((SCREEN_WIDTH/2),SCREEN_HEIGHT), sf::Vector2f(SCREEN_WIDTH,1));
+
+  world.rigidbody[ball].rigidbody->SetLinearVelocity(b2Vec2(world.rigidbody[ball].speed, 0.f));
+
+  float damping = 0.4f;
 
   sf::Clock clk;
   sf::Time dt;
-
-  float damping = 0.7f;
-
   while (window.isOpen())
   {
-    World.Step(1.f/framerate, 8, 3);
-
     sf::Event event;
     while(window.pollEvent(event))
     {
@@ -274,35 +235,19 @@ main (int argc, char ** argv)
         window.close();
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
-    {
       window.close();
-    }
-
-    b->shape.setPosition(
-      SCALE * b->body->GetPosition().x,
-      SCALE * b->body->GetPosition().y);
 
     float dist;
-    b2Vec2 ball_v = b->body->GetLinearVelocity();
-    float ball_y = ((b->body->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
+    b2Vec2 ball_v = world.rigidbody[ball].rigidbody->GetLinearVelocity();
+    float ball_y = ((world.rigidbody[ball].rigidbody->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
     float mouse_y = sf::Mouse::getPosition(window).y;
-
-    if (mouse_y >= p1->dim.y / 2 && mouse_y <= SCREEN_HEIGHT - (p1->dim.y / 2))
-      p1->target_y = sf::Mouse::getPosition(window).y / SCALE;
-
-    b2Vec2 p1_position = p1->body->GetPosition();
-    p1_position.y = p1->target_y - (p1->target_y - p1_position.y) * damping;
-    p1->body->SetTransform(p1_position, 0);
-
-    p1->shape.setPosition(
-      SCALE * p1->body->GetPosition().x,
-      SCALE * p1->body->GetPosition().y);
-
-    b2Vec2 p2_position = p2->body->GetPosition();
 
     if (playmode == 1)
     {
-      dist = std::abs(b->body->GetPosition().x - p2->body->GetPosition().x);
+      dist = std::abs(
+        world.rigidbody[ball].rigidbody->GetPosition().x
+        - world.rigidbody[p2].rigidbody->GetPosition().x);
+
       vector a1(inputs);
       a1(0) = 1;
       a1(1) = dist;
@@ -323,9 +268,74 @@ main (int argc, char ** argv)
 
       vector h = sigmoid(prod(a2, Theta2));
 
-      float p2_target = b->body->GetPosition().y;
-      p2_target = (h(0) * SCREEN_HEIGHT/SCALE);
-      p2_position.y = p2_target - (p2_target - p2_position.y) * damping;
+      float p2_target_y = (h(0) * SCREEN_HEIGHT/SCALE);
+      world.agent[p2].target_y =
+        p2_target_y - (p2_target_y - world.rigidbody[p2].rigidbody->GetPosition().y) * damping;
+    }
+
+    if (playmode == 0)
+    {
+        dist = std::abs(
+          world.rigidbody[ball].rigidbody->GetPosition().x
+          - world.rigidbody[p1].rigidbody->GetPosition().x);
+        data_collect_system(&world, p1, dist, ball_y, ball_v, human_file);
+    }
+
+    scoring_system(&world, p1, p2, ball);
+
+    window.clear(sf::Color(110,110,110));
+    for(int entity=0; entity<ENTITY_COUNT; ++entity)
+    {
+      if(flag_is_set(&world, entity, component_sprite) && flag_is_set(&world, entity, component_rigidbody))
+      {
+        if(world.type[entity].type == entity_paddle)
+        {
+          paddle_move_system(&world, p1, mouse_y, damping);
+          paddle_move_system(&world, p2, world.agent[p2].target_y, damping);
+        }
+
+        if(world.type[entity].type == entity_ball)
+        {
+          ball_correction_system(&world, ball);
+        }
+        physics_system(&world, entity);
+      }
+
+      if (flag_is_set(&world, entity, component_text))
+      {
+        text_rendering_system(&world, entity, &window);
+      }
+
+      if(flag_is_set(&world, entity, component_sprite))
+      {
+        sprite_rendering_system(&world, entity, &window);
+      }
+    }
+
+
+    window.display();
+    PhysicsWorld.Step(1.f/framerate, 8, 3);
+    dt = clk.restart();
+  }
+
+  return(EXIT_SUCCESS);
+}
+/*
+  while (window.isOpen())
+  {
+    float mouse_y = sf::Mouse::getPosition(window).y;
+
+    if (mouse_y >= p1->dim.y / 2 && mouse_y <= SCREEN_HEIGHT - (p1->dim.y / 2))
+      p1->target_y = sf::Mouse::getPosition(window).y / SCALE;
+
+    b2Vec2 p1_position = p1->body->GetPosition();
+    p1_position.y = p1->target_y - (p1->target_y - p1_position.y) * damping;
+    p1->body->SetTransform(p1_position, 0);
+
+    b2Vec2 p2_position = p2->body->GetPosition();
+
+    if (playmode == 1)
+    {
     }
     else
     {
@@ -360,22 +370,6 @@ main (int argc, char ** argv)
       b->body->ApplyForceToCenter(ball_horizical_velocity, true);
     }
 
-    if (b->body->GetPosition().x < 0 || b->body->GetPosition().x > (SCREEN_WIDTH / SCALE))
-    {
-      if (b->body->GetPosition().x < 0)
-        p2->score += 1;
-      else
-        p1->score += 1;
-
-      float choices[2] = {-1.f, 1.f};
-      std::srand(time(nullptr));
-      int r = rand()%2;
-      float c = choices[r];
-      b->body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
-      b->body->SetLinearVelocity(b2Vec2(
-        b->speed * c,
-        random_float(-b->speed, b->speed)));
-    }
 
     b->shape.setRotation(b->body->GetAngle() * (180 / PI));
 
@@ -406,6 +400,6 @@ main (int argc, char ** argv)
 
   if (human_file.is_open())
     human_file.close();
-
   return EXIT_SUCCESS;
 }
+*/
