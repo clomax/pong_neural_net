@@ -6,6 +6,7 @@
 #define SCALE 30.f
 #define PI 3.1459
 #define E 2.71828182845904523536
+#define DELIM ","
 
 inline float
 random_float (float min, float max)

@@ -16,12 +16,13 @@
 #include <boost/numeric/ublas/io.hpp>
 
 #include "entity.hpp"
+#include "components.hpp"
+#include "systems.hpp"
 #include "util.hpp"
 
 namespace ublas = boost::numeric::ublas;
 typedef ublas::matrix<float> matrix;
 typedef ublas::vector<float> vector;
-
 
 inline vector
 sigmoid(vector z)
@@ -33,20 +34,11 @@ sigmoid(vector z)
   return z;
 }
 
-inline void
-asset_load_err (std::string asset)
-{
-  std::cerr << "Failed to load: " << asset << std::endl;
-  exit(EXIT_FAILURE);
-}
-
 int
 main (int argc, char ** argv)
 {
   std::ofstream human_file;
   std::ifstream ai_file;
-
-  const std::string delim = ",";
 
   std::string filepath;
   std::string filename;
@@ -157,181 +149,85 @@ main (int argc, char ** argv)
     }
   }
 
-  // Do window stuff
-  sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
-  //window.setMouseCursorVisible(false);
-  window.setFramerateLimit(60);
-
-  b2Vec2 Gravity(0.f, 0.f);
-  b2World World(Gravity);
-
-  std::vector<entity*> entities;
-
   sf::Texture blank_texture;
   blank_texture.loadFromFile("assets/images/blank.png");
 
   sf::Texture ball_texture;
   ball_texture.loadFromFile("assets/images/ball.png");
 
-  // Create player paddle
-  sf::Sprite p1_sprite;
-  entity* p1 = (entity*)malloc(sizeof(entity));
-  p1->position = sf::Vector2f(50.f, (SCREEN_HEIGHT/2.f));
-  p1->dimensions = sf::Vector2f(20.f,100.f);
-  p1->type = entity_paddle;
-  p1->component_flags =
-    component_sprite|component_rigidbody|component_position|component_dimensions|component_colour|component_playercontrol;
-  p1->rigidbody_shape = rigidbody_rectangle;
-  p1->rigidbody_type = rigidbody_static;
-  build_sprite(p1, &p1_sprite, &blank_texture);
-  build_rigidbody(p1, &World, p1->rigidbody_type, p1->rigidbody_shape);
-  p1->sprite->setColor(sf::Color::Yellow);
-  entities.push_back(p1);
-
-  // Create AI paddle
-  sf::Sprite p2_sprite;
-  entity* p2 = (entity*)malloc(sizeof(entity));
-  p2->position = sf::Vector2f((SCREEN_WIDTH-50.f), (SCREEN_HEIGHT/2.f));
-  p2->dimensions = sf::Vector2f(20.f,100.f);
-  p2->type = entity_paddle;
-  p2->component_flags =
-    component_sprite|component_rigidbody|component_position|component_dimensions|component_colour;
-  p2->rigidbody_shape = rigidbody_rectangle;
-  p2->rigidbody_type = rigidbody_static;
-  build_sprite(p2, &p2_sprite, &blank_texture);
-  build_rigidbody(p2, &World, p2->rigidbody_type, p2->rigidbody_shape);
-  p2->sprite->setColor((playmode == 0) ? sf::Color::Green : sf::Color::Red);
-  entities.push_back(p2);
-
-
-  // create ball
-  sf::Sprite ball_sprite;
-  entity* ball = (entity*)malloc(sizeof(entity));
-  ball->position = sf::Vector2f((SCREEN_WIDTH/2),(SCREEN_HEIGHT/2));
-  ball->dimensions = sf::Vector2f(50,50);
-  ball->radius = 0.5f;
-  ball->type = entity_ball;
-  ball->component_flags = component_sprite|component_rigidbody|component_position;
-  ball->rigidbody_shape = rigidbody_circle;
-  ball->rigidbody_type = rigidbody_dynamic;
-  ball->restitution = 1.f;
-  build_sprite(ball, &ball_sprite, &ball_texture);
-  ball->sprite->setScale(sf::Vector2f(ball->radius,ball->radius));
-  build_rigidbody(ball, &World, ball->rigidbody_type, ball->rigidbody_shape);
-  entities.push_back(ball);
-
-  // Create divider
-  sf::Sprite divider_sprite;
-  entity* divider = (entity*)malloc(sizeof(entity));
-  divider->position = sf::Vector2f((SCREEN_WIDTH/2)+5,0);
-  divider->dimensions = sf::Vector2f(10,SCREEN_HEIGHT);
-  divider->type = entity_static;
-  divider->component_flags = component_sprite|component_position;
-  build_sprite(divider, &divider_sprite, &blank_texture);
-  divider->sprite->setOrigin(0,0);
-  divider->sprite->setColor(sf::Color(200,200,200));
-
-  // make sure that the divider is drawn below everything else
-  auto it = entities.begin();
-  it = entities.insert(it,divider);
-
-  //create walls
-  entity* wall0 = (entity*)malloc(sizeof(entity));
-  wall0->position = sf::Vector2f((SCREEN_WIDTH/2),0);
-  wall0->dimensions = sf::Vector2f(SCREEN_WIDTH,1);
-  wall0->type = entity_static;
-  wall0->rigidbody_shape = rigidbody_rectangle;
-  wall0->rigidbody_type = rigidbody_static;
-  wall0->component_flags = component_position|component_rigidbody|component_dimensions;
-  build_rigidbody(wall0, &World, wall0->rigidbody_type, wall0->rigidbody_shape);
-  entities.push_back(wall0);
-
-  entity* wall1 = (entity*)malloc(sizeof(entity));
-  wall1->position = sf::Vector2f((SCREEN_WIDTH/2),SCREEN_HEIGHT);
-  wall1->dimensions = sf::Vector2f(SCREEN_WIDTH,1);
-  wall1->type = entity_static;
-  wall1->rigidbody_shape = rigidbody_rectangle;
-  wall1->rigidbody_type = rigidbody_static;
-  wall1->component_flags = component_position|component_rigidbody|component_dimensions;
-  build_rigidbody(wall1, &World, wall1->rigidbody_type, wall1->rigidbody_shape);
-  entities.push_back(wall1);
-
-  ball->rigidbody->SetLinearVelocity(b2Vec2(-20.f,0.f));
-
-  sf::Clock clk;
-  sf::Time dt;
-  while (window.isOpen())
-  {
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
-      window.close();
-
-    float mouse_y = sf::Mouse::getPosition(window).y;
-
-    window.clear(sf::Color(110,110,110));
-    for(entity* e : entities)
-    {
-      if(flag_is_set(e, component_playercontrol))
-      {
-        e->rigidbody->SetTransform(b2Vec2(e->rigidbody->GetPosition().x, mouse_y/SCALE), 0);
-      }
-
-      if(flag_is_set(e, component_rigidbody) && flag_is_set(e, component_sprite))
-      {
-        e->sprite->setPosition(
-          e->rigidbody->GetPosition().x * SCALE,
-          e->rigidbody->GetPosition().y * SCALE);
-
-        e->sprite->setRotation(e->rigidbody->GetAngle());
-      }
-
-      if (flag_is_set(e, component_sprite))
-      {
-        window.draw(*(e)->sprite);
-      }
-    }
-    window.display();
-    World.Step(1.f/framerate, 8, 3);
-    dt = clk.restart();
-  }
-
-  return(EXIT_SUCCESS);
-}
-/*
-  // create paddle score text things
   sf::Font score_font;
-  std::string font_file = "assets/fonts/Precursive.otf";
-  if(!score_font.loadFromFile(font_file))
-  {
-    asset_load_err(font_file);
-  }
+  score_font.loadFromFile("assets/fonts/Precursive.otf");
 
-  sf::Text p1_score;
-  p1_score.setFont(score_font);
-  p1_score.setString(std::to_string(p1->score));
-  p1_score.setCharacterSize(32);
-  p1_score.setPosition((SCREEN_WIDTH/2) - 50,10);
-  p1_score.setOrigin(p1_score.getScale()/2.f);
+  // Do window stuff
+  sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32), "PUNG");
+  window.setMouseCursorVisible(false);
+  window.setFramerateLimit(60);
 
-  sf::Text p2_score;
-  p2_score.setFont(score_font);
-  p2_score.setString(std::to_string(p2->score));
-  p2_score.setCharacterSize(32);
-  p2_score.setPosition((SCREEN_WIDTH/2) + 50,10);
-  p2_score.setOrigin(p2_score.getScale()/2.f);
+  b2Vec2 Gravity(0.f, 0.f);
+  b2World PhysicsWorld(Gravity);
 
-  // Create walls
 
-  sf::Mouse::setPosition(sf::Vector2i(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), window);
+  Mem world = createWorld();
+
+  unsigned int divider = createEntity(&world);
+  world.type[divider].type = entity_static;
+  add_sprite(&world, divider, &blank_texture,
+             sf::Vector2f(SCREEN_WIDTH/2,SCREEN_HEIGHT/2),
+             sf::Vector2f(10,SCREEN_HEIGHT));
+  world.sprite[divider].sprite.setColor(sf::Color(200,200,200));
+
+  unsigned int ball = createEntity(&world);
+  world.type[ball].type = entity_ball;
+  add_sprite(&world, ball, &ball_texture,
+             sf::Vector2f(SCREEN_WIDTH/2,SCREEN_HEIGHT/2),
+             sf::Vector2f(50,50));
+  world.rigidbody[ball].radius = 0.5f;
+  world.rigidbody[ball].speed = 20.f;
+  add_rigidbody(&world, ball, &PhysicsWorld, rigidbody_dynamic, rigidbody_circle);
+  world.sprite[ball].sprite.setScale(sf::Vector2f(0.75f,0.75f));
+
+  unsigned int p1 = createEntity(&world, component_playercontrol);
+  world.type[p1].type = entity_paddle;
+  add_sprite(&world, p1, &blank_texture,
+             sf::Vector2f(50,SCREEN_HEIGHT/2),
+             sf::Vector2f(20,100));
+  world.sprite[p1].sprite.setColor(sf::Color::Yellow);
+  add_rigidbody(&world, p1, &PhysicsWorld, rigidbody_static, rigidbody_rectangle);
+  add_agent(&world, p1);
+
+  unsigned int p2 = createEntity(&world);
+  world.type[p2].type = entity_paddle;
+  add_sprite(&world, p2, &blank_texture,
+             sf::Vector2f(SCREEN_WIDTH-50,SCREEN_HEIGHT/2),
+             sf::Vector2f(20,100));
+  add_rigidbody(&world, p2, &PhysicsWorld, rigidbody_static, rigidbody_rectangle);
+  add_agent(&world, p2);
+  (playmode == 0)
+    ? world.sprite[p2].sprite.setColor(sf::Color::Green)
+    : world.sprite[p2].sprite.setColor(sf::Color::Red);
+
+  unsigned int p1_score = createEntity(&world, component_text);
+  add_text(&world, p1_score, p1, &score_font, 32, sf::Vector2f((SCREEN_WIDTH/4),10));
+
+  unsigned int p2_score = createEntity(&world, component_text);
+  add_text(&world, p2_score, p2, &score_font, 32, sf::Vector2f(SCREEN_WIDTH-(SCREEN_WIDTH/4),10));
+
+  unsigned int wall0 = createEntity(&world);
+  add_rigidbody(&world, wall0, &PhysicsWorld, rigidbody_static, rigidbody_rectangle,
+    sf::Vector2f((SCREEN_WIDTH/2),0), sf::Vector2f(SCREEN_WIDTH,1));
+
+  unsigned int wall1 = createEntity(&world);
+  add_rigidbody(&world, wall1, &PhysicsWorld, rigidbody_static, rigidbody_rectangle,
+    sf::Vector2f((SCREEN_WIDTH/2),SCREEN_HEIGHT), sf::Vector2f(SCREEN_WIDTH,1));
+
+  world.rigidbody[ball].rigidbody->SetLinearVelocity(b2Vec2(world.rigidbody[ball].speed, 0.f));
+
+  float damping = 0.4f;
 
   sf::Clock clk;
   sf::Time dt;
-
-  float damping = 0.7f;
-
   while (window.isOpen())
   {
-    World.Step(1.f/framerate, 8, 3);
-
     sf::Event event;
     while(window.pollEvent(event))
     {
@@ -339,35 +235,19 @@ main (int argc, char ** argv)
         window.close();
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
-    {
       window.close();
-    }
-
-    b->shape.setPosition(
-      SCALE * b->body->GetPosition().x,
-      SCALE * b->body->GetPosition().y);
 
     float dist;
-    b2Vec2 ball_v = b->body->GetLinearVelocity();
-    float ball_y = ((b->body->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
+    b2Vec2 ball_v = world.rigidbody[ball].rigidbody->GetLinearVelocity();
+    float ball_y = ((world.rigidbody[ball].rigidbody->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
     float mouse_y = sf::Mouse::getPosition(window).y;
-
-    if (mouse_y >= p1->dim.y / 2 && mouse_y <= SCREEN_HEIGHT - (p1->dim.y / 2))
-      p1->target_y = sf::Mouse::getPosition(window).y / SCALE;
-
-    b2Vec2 p1_position = p1->body->GetPosition();
-    p1_position.y = p1->target_y - (p1->target_y - p1_position.y) * damping;
-    p1->body->SetTransform(p1_position, 0);
-
-    p1->shape.setPosition(
-      SCALE * p1->body->GetPosition().x,
-      SCALE * p1->body->GetPosition().y);
-
-    b2Vec2 p2_position = p2->body->GetPosition();
 
     if (playmode == 1)
     {
-      dist = std::abs(b->body->GetPosition().x - p2->body->GetPosition().x);
+      dist = std::abs(
+        world.rigidbody[ball].rigidbody->GetPosition().x
+        - world.rigidbody[p2].rigidbody->GetPosition().x);
+
       vector a1(inputs);
       a1(0) = 1;
       a1(1) = dist;
@@ -388,9 +268,74 @@ main (int argc, char ** argv)
 
       vector h = sigmoid(prod(a2, Theta2));
 
-      float p2_target = b->body->GetPosition().y;
-      p2_target = (h(0) * SCREEN_HEIGHT/SCALE);
-      p2_position.y = p2_target - (p2_target - p2_position.y) * damping;
+      float p2_target_y = (h(0) * SCREEN_HEIGHT/SCALE);
+      world.agent[p2].target_y =
+        p2_target_y - (p2_target_y - world.rigidbody[p2].rigidbody->GetPosition().y) * damping;
+    }
+
+    if (playmode == 0)
+    {
+        dist = std::abs(
+          world.rigidbody[ball].rigidbody->GetPosition().x
+          - world.rigidbody[p1].rigidbody->GetPosition().x);
+        data_collect_system(&world, p1, dist, ball_y, ball_v, human_file);
+    }
+
+    scoring_system(&world, p1, p2, ball);
+
+    window.clear(sf::Color(110,110,110));
+    for(int entity=0; entity<ENTITY_COUNT; ++entity)
+    {
+      if(flag_is_set(&world, entity, component_sprite) && flag_is_set(&world, entity, component_rigidbody))
+      {
+        if(world.type[entity].type == entity_paddle)
+        {
+          paddle_move_system(&world, p1, mouse_y, damping);
+          paddle_move_system(&world, p2, world.agent[p2].target_y, damping);
+        }
+
+        if(world.type[entity].type == entity_ball)
+        {
+          ball_correction_system(&world, ball);
+        }
+        physics_system(&world, entity);
+      }
+
+      if (flag_is_set(&world, entity, component_text))
+      {
+        text_rendering_system(&world, entity, &window);
+      }
+
+      if(flag_is_set(&world, entity, component_sprite))
+      {
+        sprite_rendering_system(&world, entity, &window);
+      }
+    }
+
+
+    window.display();
+    PhysicsWorld.Step(1.f/framerate, 8, 3);
+    dt = clk.restart();
+  }
+
+  return(EXIT_SUCCESS);
+}
+/*
+  while (window.isOpen())
+  {
+    float mouse_y = sf::Mouse::getPosition(window).y;
+
+    if (mouse_y >= p1->dim.y / 2 && mouse_y <= SCREEN_HEIGHT - (p1->dim.y / 2))
+      p1->target_y = sf::Mouse::getPosition(window).y / SCALE;
+
+    b2Vec2 p1_position = p1->body->GetPosition();
+    p1_position.y = p1->target_y - (p1->target_y - p1_position.y) * damping;
+    p1->body->SetTransform(p1_position, 0);
+
+    b2Vec2 p2_position = p2->body->GetPosition();
+
+    if (playmode == 1)
+    {
     }
     else
     {
@@ -425,22 +370,6 @@ main (int argc, char ** argv)
       b->body->ApplyForceToCenter(ball_horizical_velocity, true);
     }
 
-    if (b->body->GetPosition().x < 0 || b->body->GetPosition().x > (SCREEN_WIDTH / SCALE))
-    {
-      if (b->body->GetPosition().x < 0)
-        p2->score += 1;
-      else
-        p1->score += 1;
-
-      float choices[2] = {-1.f, 1.f};
-      std::srand(time(nullptr));
-      int r = rand()%2;
-      float c = choices[r];
-      b->body->SetTransform(b2Vec2((SCREEN_WIDTH/2)/SCALE, (SCREEN_HEIGHT/2)/SCALE), 0);
-      b->body->SetLinearVelocity(b2Vec2(
-        b->speed * c,
-        random_float(-b->speed, b->speed)));
-    }
 
     b->shape.setRotation(b->body->GetAngle() * (180 / PI));
 

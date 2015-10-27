@@ -1,88 +1,124 @@
-
 #ifndef ENTITY_HPP
 #define ENTITY_HPP
 
-#include <SFML/Graphics.hpp>
-#include <Box2D/Box2D.h>
+#include "components.hpp"
 #include "util.hpp"
 
-enum entity_type
+#define ENTITY_COUNT 100
+
+
+typedef struct
 {
-  entity_null,
-  entity_paddle,
-  entity_ball,
-  entity_score,
-  entity_static,
-};
+  int mask[ENTITY_COUNT];
 
-enum rb_shape
+  Agent         agent       [ENTITY_COUNT];
+  Transform     transform   [ENTITY_COUNT];
+  Rigidbody     rigidbody   [ENTITY_COUNT];
+  Sprite        sprite      [ENTITY_COUNT];
+  Type          type        [ENTITY_COUNT];
+  Text          text        [ENTITY_COUNT];
+  PlayerControl player      [ENTITY_COUNT];
+} Mem;
+
+inline Mem
+createWorld()
 {
-  rigidbody_circle,
-  rigidbody_rectangle,
-};
+  Mem world;
+  for(int i=0; i<ENTITY_COUNT; ++i)
+    world.mask[i] = component_none;
+  return world;
+}
 
-enum rb_type
+inline std::vector<sf::Vector2f> add_transform(Mem *world, unsigned int entity,
+    sf::Vector2f pos, sf::Vector2f dim);
+
+unsigned int
+createEntity(Mem *world, int flags = component_none)
 {
-  rigidbody_static,
-  rigidbody_dynamic,
-};
+  unsigned int entity;
+  for(entity = 0; entity < ENTITY_COUNT; ++entity)
+  {
+    if(world->mask[entity] == component_none)
+    {
+      world->mask[entity] |= flags;
+      world->type[entity].type = entity_null;
+      return(entity);
+    }
+  }
+  return(ENTITY_COUNT);
+}
 
-enum component_flags
+void
+destroyEntity(Mem *world, unsigned int entity)
 {
-  component_rigidbody = (1 << 0),
-  component_position = (1 << 1),
-  component_dimensions = (1 << 2),
-  component_colour= (1 << 3),
-  component_sprite = (1 << 4),
-  component_playercontrol = (1 << 5),
-};
+  world->mask[entity] = component_none;
+}
 
-struct entity
+inline void
+set_flags(Mem *world, unsigned int entity, int flags)
 {
-  int component_flags;
-  entity_type type;
+  world->mask[entity] |= flags;
+}
 
-  sf::Sprite *sprite;
-  b2Body *rigidbody;
-  rb_shape rigidbody_shape;
-  rb_type rigidbody_type;
-
-  sf::Vector2f position;
-  sf::Vector2f dimensions;
-  sf::Color colour;
-  float radius;
-  float restitution = 0.f;
-};
+inline void
+unset_flags(Mem *world, unsigned int entity, int flags)
+{
+  world->mask[entity] &= ~flags;
+}
 
 inline int
-flag_is_set(entity* e, int flag)
+flag_is_set(Mem *world, unsigned int entity, int flag)
 {
-  return(e->component_flags & flag);
+  return(world->mask[entity] & flag);
 }
 
 inline void
-update_entity (entity* e)
+add_text(Mem *world, unsigned int entity, unsigned int agent, sf::Font *font, unsigned int size, sf::Vector2f pos)
 {
-  e->sprite->setPosition(
-    SCALE * e->rigidbody->GetPosition().x,
-    SCALE * e->rigidbody->GetPosition().y);
+  if (!flag_is_set(world, entity, component_text))
+  {
+    world->mask[entity] |= component_text;
+  }
+
+  world->text[entity].agent = agent;
+
+  world->text[entity].text.setFont(*font);
+  world->text[entity].text.setString(std::to_string(world->agent[agent].score));
+  world->text[entity].text.setCharacterSize(size);
+  world->text[entity].text.setOrigin(world->text[entity].text.getScale()/2.f);
+  world->text[entity].text.setPosition(pos);
 }
 
 inline void
-build_sprite(entity* e, sf::Sprite* s, sf::Texture* texture)
+add_agent(Mem *world, unsigned int entity)
 {
-  e->sprite = s;
-  e->sprite->setPosition(e->position);
-  e->sprite->setTexture(*texture);
-  e->sprite->setTextureRect(sf::IntRect(0,0,e->dimensions.x,e->dimensions.y));
-  e->sprite->setOrigin(sf::Vector2f(e->dimensions.x/2, e->dimensions.y/2));
+  if (!flag_is_set(world, entity, component_agent))
+  {
+    world->mask[entity] |= component_agent;
+  }
 }
 
-inline void
-build_rigidbody(entity* e, b2World* world, rb_type rt, rb_shape rs)
+inline b2Body*
+add_rigidbody(Mem *world, unsigned int entity, b2World *phys_world, rb_type rt, rb_shape rs,
+    sf::Vector2f pos = sf::Vector2f(0,0), sf::Vector2f dim = sf::Vector2f(10,10))
 {
+  if (!flag_is_set(world, entity, component_transform))
+  {
+    world->mask[entity] |= component_transform;
+    add_transform(world, entity, pos, dim);
+  }
+
+  if (!flag_is_set(world, entity, component_rigidbody))
+  {
+    world->mask[entity] |= component_rigidbody;
+  }
+
   b2BodyDef body_def;
-  body_def.position = b2Vec2(e->position.x/SCALE,e->position.y/SCALE);
+  body_def.position = b2Vec2(
+    world->transform[entity].position.x/SCALE,
+    world->transform[entity].position.y/SCALE);
+
+  body_def.type = b2_dynamicBody;
   switch(rt)
   {
     case rigidbody_static:
@@ -91,20 +127,16 @@ build_rigidbody(entity* e, b2World* world, rb_type rt, rb_shape rs)
     case rigidbody_dynamic:
       body_def.type = b2_dynamicBody;
       break;
-    default:
-      std::cerr << "Unknown rigidbody type.\n";
-      exit(EXIT_FAILURE);
+    case rigidbody_kinematic:
+      body_def.type = b2_kinematicBody;
+      break;
   }
 
-  /* CreateBody and CreateFixture perform a deep copy on the
-   * things you pass to them even though you're passing pointers.
-   * _STOP FORGETTING THIS_
-   */
-
-  b2Body* body = world->CreateBody(&body_def);
-  e->rigidbody = body;
+  b2Body* body = phys_world->CreateBody(&body_def);
+  world->rigidbody[entity].rigidbody = body;
 
   b2FixtureDef b2_fixture_def;
+  b2_fixture_def.friction = 0.f;
   b2CircleShape c;
   b2PolygonShape p;
 
@@ -112,27 +144,65 @@ build_rigidbody(entity* e, b2World* world, rb_type rt, rb_shape rs)
   {
     case rigidbody_circle:
       c.m_p = b2Vec2(0,0);
-      c.m_radius = e->radius;
+      c.m_radius = world->rigidbody[entity].radius;
       b2_fixture_def.shape = &c;
-      b2_fixture_def.restitution = e->restitution;
-
-      e->rigidbody->CreateFixture(&(b2_fixture_def));
+      b2_fixture_def.restitution = 1.f;
+      world->rigidbody[entity].rigidbody->CreateFixture(&(b2_fixture_def));
       break;
 
     case rigidbody_rectangle:
-      p.SetAsBox((e->dimensions.x/2.f)/SCALE, (e->dimensions.y/2.f)/SCALE);
+      p.SetAsBox(
+        (world->transform[entity].dimensions.x/2.f)/SCALE,
+        (world->transform[entity].dimensions.y/2.f)/SCALE);
       b2_fixture_def.shape = &p;
-      e->rigidbody->CreateFixture(&b2_fixture_def);
+      world->rigidbody[entity].rigidbody->CreateFixture(&b2_fixture_def);
       break;
-
-    default:
-      std::cerr << "Unknown shape.\n";
-      exit(EXIT_FAILURE);
   }
 
-  //break this out
-  //b->rigidbody->SetLinearVelocity(b2Vec2(-e->speed, random_float(-3.f, 3.f)));
-  //b2_fixture_def.density = 1.f;
-  //b2_fixture_def.restitution = 1.f;
+  return (world->rigidbody[entity].rigidbody);
 }
+
+inline std::vector<sf::Vector2f>
+add_transform(Mem *world, unsigned int entity,
+    sf::Vector2f pos = sf::Vector2f(0,0), sf::Vector2f dim = sf::Vector2f(10,10))
+{
+  if (!flag_is_set(world, entity, component_transform))
+  {
+    world->mask[entity] |= component_transform;
+  }
+  world->transform[entity].position = pos;
+  world->transform[entity].dimensions = dim;
+  return(std::vector<sf::Vector2f>{pos, dim});
+}
+
+inline sf::Sprite
+add_sprite(Mem *world, unsigned int entity, sf::Texture *texture,
+    sf::Vector2f pos = sf::Vector2f(0,0), sf::Vector2f dim = sf::Vector2f(10,10))
+{
+  if (!flag_is_set(world, entity, component_transform))
+  {
+    world->mask[entity] |= component_transform;
+    add_transform(world, entity, pos, dim);
+  }
+
+  if (!flag_is_set(world, entity, component_sprite|component_sprite))
+  {
+    world->mask[entity] |= component_sprite;
+  }
+
+  world->transform[entity].position = pos;
+  world->transform[entity].dimensions = dim;
+
+  sf::Sprite s;
+  Transform t = world->transform[entity];
+  s.setTexture(*texture);
+  s.setTextureRect(sf::IntRect(0,0,t.dimensions.x,t.dimensions.y));
+  s.setPosition(t.position);
+  s.setOrigin(sf::Vector2f(t.dimensions.x/2, t.dimensions.y/2));
+  world->sprite[entity].sprite = s;
+
+  return (world->sprite[entity].sprite);
+}
+
 #endif
+
