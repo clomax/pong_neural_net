@@ -17,6 +17,9 @@ you should be able to just run `make`.
 
 If you're going to try to compile this on Windows: best of luck to you, I haven't even tried.
 
+On Debian install `r-base` and `littler` to get the neural network stuff
+working.
+
 
 ##How does it work?
 
