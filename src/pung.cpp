@@ -11,28 +11,11 @@
 #include <SFML/Graphics.hpp>
 #include <Box2D/Box2D.h>
 #include <tclap/CmdLine.h>
-#include <boost/numeric/ublas/matrix.hpp>
-#include <boost/numeric/ublas/vector.hpp>
-#include <boost/numeric/ublas/io.hpp>
 
 #include "entity.hpp"
 #include "components.hpp"
 #include "systems.hpp"
 #include "util.hpp"
-
-namespace ublas = boost::numeric::ublas;
-typedef ublas::matrix<float> matrix;
-typedef ublas::vector<float> vector;
-
-inline vector
-sigmoid(vector z)
-{
-  for (unsigned long i=0; i < z.size(); ++i)
-  {
-    z(i) = (1.f / (1.f + std::pow(E, -z(i))));
-  }
-  return z;
-}
 
 int
 main (int argc, char ** argv)
@@ -116,37 +99,24 @@ main (int argc, char ** argv)
   vector Weights(weights_length);
   matrix Theta1(inputs,hidden_nodes);
   matrix Theta2(hidden_nodes+1,1);
-
   vector h1(hidden_nodes+1);
 
+  std::string line;
+  size_t index = 0;
+  while(getline(ai_file, line))
+  {
+    float w = std::stof(line);
+    Weights(index) = w;
+    ++index;
+  }
+  ai_file.close();
+
+  std::vector<matrix> Theta;
   if (playmode == 1)
   {
-    std::string line;
-    size_t index = 0;
-    while(getline(ai_file, line))
-    {
-      float w = std::stof(line);
-      Weights(index) = w;
-      ++index;
-    }
-    ai_file.close();
-
-    //split theta
-    int w_index = 0;
-    for (int i=0; i < hidden_nodes; ++i)
-    {
-      for(int k=0; k < inputs; ++k)
-      {
-        Theta1(k,i) = Weights(w_index);
-        ++w_index;
-      }
-    }
-
-    for(int j=0; j < hidden_nodes; ++j)
-    {
-      Theta2(j,0) = Weights(w_index);
-      ++w_index;
-    }
+    Theta = split_theta(Weights, inputs, hidden_nodes);
+    Theta1 = Theta[0];
+    Theta2 = Theta[1];
   }
 
   sf::Texture blank_texture;
@@ -247,30 +217,8 @@ main (int argc, char ** argv)
       dist = std::abs(
         world.rigidbody[ball].rigidbody->GetPosition().x
         - world.rigidbody[p2].rigidbody->GetPosition().x);
-
-      vector a1(inputs);
-      a1(0) = 1;
-      a1(1) = dist;
-      a1(2) = ball_y;
-      a1(3) = ball_v.x;
-      a1(4) = ball_v.y;
-
-      vector z2 = prod(a1,Theta1);
-
-      vector tmp = sigmoid(z2);
-      vector a2(hidden_nodes+1);
-
-      a2(0) = 1;
-      for (unsigned long i=1; i < a2.size(); ++i)
-      {
-        a2(i) = tmp(i-1);
-      }
-
-      vector h = sigmoid(prod(a2, Theta2));
-
-      float p2_target_y = (h(0) * SCREEN_HEIGHT/SCALE);
-      world.agent[p2].target_y =
-        p2_target_y - (p2_target_y - world.rigidbody[p2].rigidbody->GetPosition().y) * damping;
+      std::vector<float> inputs = { dist, ball_y, ball_v.x, ball_v.y };
+      AI_system(&world, p2, hidden_nodes, Theta1, Theta2, inputs, damping);
     }
 
     if (playmode == 0)

@@ -5,6 +5,35 @@
 #include "util.hpp"
 
 inline void
+AI_system(Mem *world, unsigned int entity, int hidden,
+          matrix Theta1, matrix Theta2, std::vector<float> inputs, float damping)
+{
+    vector a1(inputs.size()+1);
+    a1(0) = 1;
+    a1(1) = inputs[0];
+    a1(2) = inputs[1];
+    a1(3) = inputs[2];
+    a1(4) = inputs[3];
+
+    vector z2 = prod(a1,Theta1);
+
+    vector tmp = sigmoid(z2);
+    vector a2(hidden+1);
+
+    a2(0) = 1;
+    for (unsigned long i=1; i < a2.size(); ++i)
+    {
+      a2(i) = tmp(i-1);
+    }
+
+    vector h = sigmoid(prod(a2, Theta2));
+
+    float target = (h(0) * SCREEN_HEIGHT/SCALE);
+    world->agent[entity].target_y =
+      target - (target - world->rigidbody[entity].rigidbody->GetPosition().y) * damping;
+}
+
+inline void
 physics_system(Mem *world, unsigned int entity)
 {
     world->transform[entity].position =
