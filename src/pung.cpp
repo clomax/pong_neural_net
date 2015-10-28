@@ -166,6 +166,8 @@ main (int argc, char ** argv)
   add_agent(&world, p1);
 
   unsigned int p2 = createEntity(&world);
+  int flags = (playmode) ? component_nncontrol : component_simpleai;
+  set_flags(&world, p2, flags);
   world.type[p2].type = entity_paddle;
   add_sprite(&world, p2, &blank_texture,
              sf::Vector2f(SCREEN_WIDTH-50,SCREEN_HEIGHT/2),
@@ -212,23 +214,6 @@ main (int argc, char ** argv)
     float ball_y = ((world.rigidbody[ball].rigidbody->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
     float mouse_y = sf::Mouse::getPosition(window).y;
 
-    if (playmode == 1)
-    {
-      dist = std::abs(
-        world.rigidbody[ball].rigidbody->GetPosition().x
-        - world.rigidbody[p2].rigidbody->GetPosition().x);
-      std::vector<float> inputs = { dist, ball_y, ball_v.x, ball_v.y };
-      AI_system(&world, p2, hidden_nodes, Theta1, Theta2, inputs, damping);
-    }
-
-    if (playmode == 0)
-    {
-        dist = std::abs(
-          world.rigidbody[ball].rigidbody->GetPosition().x
-          - world.rigidbody[p1].rigidbody->GetPosition().x);
-        data_collect_system(&world, p1, dist, ball_y, ball_v, human_file);
-    }
-
     scoring_system(&world, p1, p2, ball);
 
     window.clear(sf::Color(110,110,110));
@@ -236,16 +221,40 @@ main (int argc, char ** argv)
     {
       if(flag_is_set(&world, entity, component_sprite) && flag_is_set(&world, entity, component_rigidbody))
       {
-        if(world.type[entity].type == entity_paddle)
+        if (flag_is_set(&world, entity, component_nncontrol))
         {
-          paddle_move_system(&world, p1, mouse_y, damping);
-          paddle_move_system(&world, p2, world.agent[p2].target_y, damping);
+          dist = std::abs(
+            world.rigidbody[ball].rigidbody->GetPosition().x
+            - world.rigidbody[entity].rigidbody->GetPosition().x);
+          std::vector<float> inputs = { dist, ball_y, ball_v.x, ball_v.y };
+          AI_system(&world, entity, hidden_nodes, Theta1, Theta2, inputs, damping);
+        }
+
+        if (flag_is_set(&world, entity, component_simpleai))
+        {
+          dist = std::abs(
+            world.rigidbody[ball].rigidbody->GetPosition().x
+            - world.rigidbody[entity].rigidbody->GetPosition().x);
+          data_collect_system(&world, p1, dist, ball_y, ball_v, human_file);
+
+          world.agent[entity].target_y = world.rigidbody[ball].rigidbody->GetPosition().y;
+        }
+
+        if(flag_is_set(&world, entity, component_playercontrol))
+        {
+          paddle_move_system(&world, entity, mouse_y, damping);
+        }
+
+        if(!flag_is_set(&world, entity, component_playercontrol) && world.type[entity].type == entity_paddle)
+        {
+          paddle_move_system(&world, entity, world.agent[entity].target_y, damping);
         }
 
         if(world.type[entity].type == entity_ball)
         {
-          ball_correction_system(&world, ball);
+          ball_correction_system(&world, entity);
         }
+
         physics_system(&world, entity);
       }
 
@@ -259,7 +268,6 @@ main (int argc, char ** argv)
         sprite_rendering_system(&world, entity, &window);
       }
     }
-
 
     window.display();
     PhysicsWorld.Step(1.f/framerate, 8, 3);

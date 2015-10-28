@@ -9,9 +9,10 @@ enum component_flags
   component_colour= (1 << 2),
   component_sprite = (1 << 3),
   component_playercontrol = (1 << 4),
-  component_aicontrol = (1 << 5),
-  component_agent = (1 << 6),
-  component_text = (1 << 7),
+  component_nncontrol = (1 << 5),
+  component_simpleai = (1 << 6),
+  component_agent = (1 << 7),
+  component_text = (1 << 8),
 };
 
 typedef struct
