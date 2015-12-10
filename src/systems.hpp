@@ -56,7 +56,8 @@ inline void
 sprite_rendering_system(Mem *world, unsigned int entity, sf::RenderWindow *win)
 {
     world->sprite[entity].sprite.setPosition(world->transform[entity].position);
-    win->draw(world->sprite[entity].sprite);
+    sf::Sprite s = world->sprite[entity].sprite;
+    win->draw(s);
 }
 
 inline void
