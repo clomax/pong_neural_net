@@ -4,12 +4,9 @@
 #include "components.hpp"
 #include "util.hpp"
 
-#define ENTITY_COUNT 100
-
-
 typedef struct
 {
-  int mask[ENTITY_COUNT];
+  int32 mask[ENTITY_COUNT];
 
   Agent         agent       [ENTITY_COUNT];
   Transform     transform   [ENTITY_COUNT];
@@ -20,24 +17,13 @@ typedef struct
   PlayerControl player      [ENTITY_COUNT];
 } Mem;
 
-inline Mem *
-createWorld()
-{
-  Mem *world = (Mem*)malloc(sizeof(Mem));
-  for(int i=0; i<ENTITY_COUNT; ++i)
-  {
-    world->mask[i] = component_none;
-  }
-  return world;
-}
+inline std::vector<sf::Vector2f>
+add_transform(Mem *world, uint32 entity, sf::Vector2f pos, sf::Vector2f dim);
 
-inline std::vector<sf::Vector2f> add_transform(Mem *world, unsigned int entity,
-    sf::Vector2f pos, sf::Vector2f dim);
-
-unsigned int
+uint32
 createEntity(Mem *world, int flags = component_none)
 {
-  unsigned int entity;
+  uint32 entity;
   for(entity = 0; entity < ENTITY_COUNT; ++entity)
   {
     if(world->mask[entity] == component_none)
@@ -51,31 +37,31 @@ createEntity(Mem *world, int flags = component_none)
 }
 
 void
-destroyEntity(Mem *world, unsigned int entity)
+destroyEntity(Mem *world, uint32 entity)
 {
   world->mask[entity] = component_none;
 }
 
 inline void
-set_flags(Mem *world, unsigned int entity, int flags)
+set_flags(Mem *world, uint32 entity, int flags)
 {
   world->mask[entity] |= flags;
 }
 
 inline void
-unset_flags(Mem *world, unsigned int entity, int flags)
+unset_flags(Mem *world, uint32 entity, int flags)
 {
   world->mask[entity] &= ~flags;
 }
 
 inline int
-flag_is_set(Mem *world, unsigned int entity, int flag)
+flag_is_set(Mem *world, uint32 entity, int flag)
 {
   return(world->mask[entity] & flag);
 }
 
 inline void
-add_text(Mem *world, unsigned int entity, unsigned int agent, sf::Font *font, unsigned int size, sf::Vector2f pos)
+add_text(Mem *world, uint32 entity, uint32 agent, sf::Font *font, uint32 size, sf::Vector2f pos)
 {
   if (!flag_is_set(world, entity, component_text))
   {
@@ -92,7 +78,7 @@ add_text(Mem *world, unsigned int entity, unsigned int agent, sf::Font *font, un
 }
 
 inline void
-add_agent(Mem *world, unsigned int entity)
+add_agent(Mem *world, uint32 entity)
 {
   if (!flag_is_set(world, entity, component_agent))
   {
@@ -101,7 +87,7 @@ add_agent(Mem *world, unsigned int entity)
 }
 
 inline b2Body*
-add_rigidbody(Mem *world, unsigned int entity, b2World *phys_world, rb_type rt, rb_shape rs,
+add_rigidbody(Mem *world, uint32 entity, b2World *phys_world, rb_type rt, rb_shape rs,
     sf::Vector2f pos = sf::Vector2f(0,0), sf::Vector2f dim = sf::Vector2f(10,10))
 {
   if (!flag_is_set(world, entity, component_transform))
@@ -165,7 +151,7 @@ add_rigidbody(Mem *world, unsigned int entity, b2World *phys_world, rb_type rt, 
 }
 
 inline std::vector<sf::Vector2f>
-add_transform(Mem *world, unsigned int entity,
+add_transform(Mem *world, uint32 entity,
     sf::Vector2f pos = sf::Vector2f(0,0), sf::Vector2f dim = sf::Vector2f(10,10))
 {
   if (!flag_is_set(world, entity, component_transform))
@@ -178,7 +164,7 @@ add_transform(Mem *world, unsigned int entity,
 }
 
 inline sf::Sprite
-add_sprite(Mem *world, unsigned int entity, sf::Texture *texture,
+add_sprite(Mem *world, uint32 entity, sf::Texture *texture,
     sf::Vector2f pos = sf::Vector2f(0,0), sf::Vector2f dim = sf::Vector2f(10,10))
 {
   if (!flag_is_set(world, entity, component_transform))

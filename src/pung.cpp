@@ -1,17 +1,5 @@
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <string>
-#include <cmath>
-#include <random>
-#include <algorithm>
-#include <memory>
-#include <cmath>
-#include <stdlib.h>
-#include <SFML/Graphics.hpp>
-#include <Box2D/Box2D.h>
-#include <tclap/CmdLine.h>
-
+#include "pung.hpp"
+#include "world.hpp"
 #include "entity.hpp"
 #include "components.hpp"
 #include "systems.hpp"
@@ -25,11 +13,11 @@ main (int argc, char ** argv)
 
   std::string filepath;
   std::string filename;
-  int playmode;
-  int hidden_nodes;
+  int32 playmode;
+  int32 hidden_nodes;
 
-  float framerate = 60.f;
-  int inputs = 5;
+  real32 framerate = 60.f;
+  int32  inputs = 5;
 
   try
   {
@@ -42,7 +30,7 @@ main (int argc, char ** argv)
       "/dev/null",
       "string");
 
-    TCLAP::ValueArg<int> playmodeArg(
+    TCLAP::ValueArg<int32> playmodeArg(
       "p",
       "playmode",
       "Play mode",
@@ -50,7 +38,7 @@ main (int argc, char ** argv)
       0,
       "int");
 
-    TCLAP::ValueArg<int> hiddenNodesArg(
+    TCLAP::ValueArg<int32> hiddenNodesArg(
       "n",
       "hidden-nodes",
       "Hidden nodes",
@@ -91,7 +79,7 @@ main (int argc, char ** argv)
     exit(EXIT_FAILURE);
   }
 
-  int weights_length = std::count (std::istreambuf_iterator<char>(ai_file),
+  int32 weights_length = std::count (std::istreambuf_iterator<char>(ai_file),
                                    std::istreambuf_iterator<char>(), '\n');
   ai_file.clear();
   ai_file.seekg(0, std::ios::beg);
@@ -105,7 +93,7 @@ main (int argc, char ** argv)
   size_t index = 0;
   while(getline(ai_file, line))
   {
-    float w = std::stof(line);
+    real32 w = std::stof(line);
     Weights(index) = w;
     ++index;
   }
@@ -137,15 +125,16 @@ main (int argc, char ** argv)
   b2World PhysicsWorld(Gravity);
 
   Mem *world = createWorld();
+  Assert(world);
 
-  unsigned int divider = createEntity(world);
+  uint32 divider = createEntity(world);
   world->type[divider].type = entity_static;
   add_sprite(world, divider, &blank_texture,
              sf::Vector2f(SCREEN_WIDTH/2,SCREEN_HEIGHT/2),
              sf::Vector2f(10,SCREEN_HEIGHT));
   world->sprite[divider].sprite.setColor(sf::Color(200,200,200));
 
-  unsigned int ball = createEntity(world);
+  uint32 ball = createEntity(world);
   world->type[ball].type = entity_ball;
   add_sprite(world, ball, &ball_texture,
              sf::Vector2f(SCREEN_WIDTH/2,SCREEN_HEIGHT/2),
@@ -155,7 +144,7 @@ main (int argc, char ** argv)
   add_rigidbody(world, ball, &PhysicsWorld, rigidbody_dynamic, rigidbody_circle);
   world->sprite[ball].sprite.setScale(sf::Vector2f(0.75f,0.75f));
 
-  unsigned int p1 = createEntity(world, component_playercontrol);
+  uint32 p1 = createEntity(world, component_playercontrol);
   world->type[p1].type = entity_paddle;
   add_sprite(world, p1, &blank_texture,
              sf::Vector2f(50,SCREEN_HEIGHT/2),
@@ -164,8 +153,8 @@ main (int argc, char ** argv)
   add_rigidbody(world, p1, &PhysicsWorld, rigidbody_static, rigidbody_rectangle);
   add_agent(world, p1);
 
-  unsigned int p2 = createEntity(world);
-  int flags = (playmode) ? component_nncontrol : component_simpleai;
+  uint32 p2 = createEntity(world);
+  int32 flags = (playmode) ? component_nncontrol : component_simpleai;
   set_flags(world, p2, flags);
   world->type[p2].type = entity_paddle;
   add_sprite(world, p2, &blank_texture,
@@ -177,23 +166,23 @@ main (int argc, char ** argv)
     ? world->sprite[p2].sprite.setColor(sf::Color::Green)
     : world->sprite[p2].sprite.setColor(sf::Color::Red);
 
-  unsigned int p1_score = createEntity(world, component_text);
+  uint32 p1_score = createEntity(world, component_text);
   add_text(world, p1_score, p1, &score_font, 32, sf::Vector2f((SCREEN_WIDTH/4),10));
 
-  unsigned int p2_score = createEntity(world, component_text);
+  uint32 p2_score = createEntity(world, component_text);
   add_text(world, p2_score, p2, &score_font, 32, sf::Vector2f(SCREEN_WIDTH-(SCREEN_WIDTH/4),10));
 
-  unsigned int wall0 = createEntity(world);
+  uint32 wall0 = createEntity(world);
   add_rigidbody(world, wall0, &PhysicsWorld, rigidbody_static, rigidbody_rectangle,
     sf::Vector2f((SCREEN_WIDTH/2),0), sf::Vector2f(SCREEN_WIDTH,1));
 
-  unsigned int wall1 = createEntity(world);
+  uint32 wall1 = createEntity(world);
   add_rigidbody(world, wall1, &PhysicsWorld, rigidbody_static, rigidbody_rectangle,
     sf::Vector2f((SCREEN_WIDTH/2),SCREEN_HEIGHT), sf::Vector2f(SCREEN_WIDTH,1));
 
   world->rigidbody[ball].rigidbody->SetLinearVelocity(b2Vec2(world->rigidbody[ball].speed, 0.f));
 
-  float damping = 0.4f;
+  real32 damping = 0.4f;
 
 
   sf::Clock clk;
@@ -208,16 +197,16 @@ main (int argc, char ** argv)
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
       window.close();
 
-    float dist;
+    real32 dist;
     b2Vec2 ball_v = world->rigidbody[ball].rigidbody->GetLinearVelocity();
-    float ball_y = ((world->rigidbody[ball].rigidbody->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
-    float mouse_y = sf::Mouse::getPosition(window).y;
+    real32 ball_y = ((world->rigidbody[ball].rigidbody->GetPosition().y) / (SCREEN_HEIGHT/SCALE)) * 100;
+    real32 mouse_y = sf::Mouse::getPosition(window).y;
 
     scoring_system(world, p1, p2, ball);
 
     window.clear(sf::Color(110,110,110));
 
-    for(int entity=0; entity<ENTITY_COUNT; ++entity)
+    for(int32 entity=0; entity<ENTITY_COUNT; ++entity)
     {
       if(world->type[entity].type == entity_null)
         break;
@@ -229,7 +218,7 @@ main (int argc, char ** argv)
           dist = std::abs(
             world->rigidbody[ball].rigidbody->GetPosition().x
             - world->rigidbody[entity].rigidbody->GetPosition().x);
-          std::vector<float> inputs = { dist, ball_y, ball_v.x, ball_v.y };
+          std::vector<real32> inputs = { dist, ball_y, ball_v.x, ball_v.y };
           AI_system(world, entity, hidden_nodes, Theta1, Theta2, inputs, damping);
         }
 

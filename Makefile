@@ -17,3 +17,6 @@ all: $(OBJS)
 
 debug: $(OBJS)
 	$(D_CC) $(OBJS) $(C_FLAGS) $(D_SFML_FLAGS) $(B2D_FLAGS) $(INCLUDE) -o $(DEBUG_OBJ_NAME)
+
+slow: $(OBJS)
+	$(CC) -DSLOW=1 $(OBJS) $(C_FLAGS) $(SFML_FLAGS) $(B2D_FLAGS) $(INCLUDE) -o $(OBJ_NAME)

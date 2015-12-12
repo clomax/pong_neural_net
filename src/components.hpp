@@ -1,6 +1,8 @@
 #ifndef COMPONENTS_HPP
 #define COMPONENTS_HPP
 
+#include "pung.hpp"
+
 enum component_flags
 {
   component_none = 0,
@@ -22,13 +24,13 @@ typedef struct
 typedef struct
 {
   sf::Text text;
-  unsigned int agent;
+  uint32 agent;
 } Text;
 
 typedef struct
 {
-  int score = 0;
-  float target_y;
+  int32 score = 0;
+  real32 target_y;
 } Agent;
 
 #include <SFML/Graphics.hpp>
@@ -58,9 +60,9 @@ typedef struct
   b2Body *rigidbody;
   rb_shape rigidbody_shape;
   rb_type rigidbody_type;
-  float radius;
-  float speed;
-  float restitution;
+  real32 radius;
+  real32 speed;
+  real32 restitution;
 } Rigidbody;
 
 typedef struct
